@@ -163,6 +163,16 @@ function groundColor(THREE, h, type, x, z, out, tmp) {
   out.offsetHSL(0, 0, n);
 }
 
+function mulberry32(a) {
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 // 렌더러 설정 헬퍼: 그림자와 색 표현을 켠다 (GameScene에서 1회 호출)
 export function configureRenderer(THREE, renderer) {
   renderer.shadowMap.enabled = true;
@@ -286,8 +296,90 @@ export function createEnvironment(THREE, scene) {
   terrain.castShadow = true;
   root.add(terrain);
 
+  // 구름 (바람 방향에 따라 천천히 흐르도록 구현)
+  function createCloudTexture(seed) {
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    const rand = mulberry32(seed);
+    ctx.clearRect(0, 0, size, size);
+    for (let i = 0; i < 14; i++) {
+      // 흐린 덩어리 14개를 겹침
+      const r = size * (0.12 + rand() * 0.14);
+      const x = size * (0.5 + (rand() - 0.5) * 0.3);
+      const y = size * (0.5 + (rand() - 0.5) * 0.3);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, "rgba(255,255,255,0.55)"); // 가운데: 진함
+      g.addColorStop(0.5, "rgba(255,255,255,0.22)");
+      g.addColorStop(1, "rgba(255,255,255,0)"); // 가장자리: 투명
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  // 구름 설정 (안개 느낌)
+  const cloudTextures = [11, 23, 37].map(createCloudTexture); // 모양이 다른 이미지 3종
+  const clouds = [];
+  const cloudRand = mulberry32(777);
+  const CLOUD_RANGE = 1700;
+  const CLOUD_COUNT = 40;
+  const cloudWhite = new THREE.Color(0xffffff);
+  const cloudShade = new THREE.Color(0xe3e6eb);
+
+  for (let i = 0; i < CLOUD_COUNT; i++) {
+    const cloud = new THREE.Group();
+    const puffs = 8 + Math.floor(cloudRand() * 6); // 구름 하나 = 얼룩 덩어리 8~13장
+    const tex = cloudTextures[Math.floor(cloudRand() * cloudTextures.length)];
+    for (let k = 0; k < puffs; k++) {
+      const px = (cloudRand() - 0.5) * 160;
+      const py = (cloudRand() - 0.5) * 24;
+      const pz = (cloudRand() - 0.5) * 60;
+      const s = 60 + cloudRand() * 70;
+      // 아래쪽 얼룩일수록 푸른 회색, 위쪽일수록 흰색
+      const shade = Math.min(1, Math.max(0, 0.5 + py / 24));
+      tmpColor.copy(cloudShade).lerp(cloudWhite, shade);
+      const mat = new THREE.SpriteMaterial({
+        map: tex,
+        color: tmpColor.clone(),
+        transparent: true,
+        opacity: 0.45 + cloudRand() * 0.3,
+        depthWrite: false,
+      });
+      const puff = new THREE.Sprite(mat);
+      puff.scale.set(s * 1.6, s * 0.85, 1);
+      puff.position.set(px, py, pz);
+      cloud.add(puff);
+    }
+    cloud.position.set(
+      (cloudRand() * 2 - 1) * CLOUD_RANGE,
+      230 + cloudRand() * 230,
+      (cloudRand() * 2 - 1) * CLOUD_RANGE,
+    );
+    cloud.userData.speed = 0.6 + cloudRand() * 0.8;
+    cloud.scale.setScalar(0.8 + cloudRand() * 1.0);
+    clouds.push(cloud);
+    root.add(cloud);
+  }
+
+  // 바람 설정
+  const wind = { x: 1, z: 0.3 };
+  const WIND_VISUAL_SPEED = 6;
+
   // 매 프레임 갱신 조건
   function update(delta, planePosition) {
+    // 구름 흐름
+    for (const c of clouds) {
+      c.position.x += wind.x * WIND_VISUAL_SPEED * c.userData.speed * delta;
+      c.position.z += wind.z * WIND_VISUAL_SPEED * c.userData.speed * delta;
+      if (c.position.x > CLOUD_RANGE) c.position.x = -CLOUD_RANGE;
+      else if (c.position.x < -CLOUD_RANGE) c.position.x = CLOUD_RANGE;
+      if (c.position.z > CLOUD_RANGE) c.position.z = -CLOUD_RANGE;
+      else if (c.position.z < -CLOUD_RANGE) c.position.z = CLOUD_RANGE;
+    }
     if (planePosition) {
       sky.position.copy(planePosition); // 하늘이 항상 비행기를 따라감
       sun.target.position.set(
@@ -308,6 +400,7 @@ export function createEnvironment(THREE, scene) {
           m.dispose(),
         );
     });
+    cloudTextures.forEach((t) => t.dispose()); // 구름 이미지 해제
     scene.remove(root);
   }
 
@@ -316,5 +409,9 @@ export function createEnvironment(THREE, scene) {
     update,
     dispose,
     getGroundHeight: (x, z) => Math.max(heightAt(x, z), SEA_LEVEL), // 지면 충돌 판정용 (바다는 수면 높이)
+    setWind: (x, z) => {
+      wind.x = x;
+      wind.z = z;
+    }, // 바람 방향 바꾸기 (구름 이동)
   };
 }
