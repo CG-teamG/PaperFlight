@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { createTestAirplane } from './createTestAirplane.js'
+import { FlightController } from '../game/FlightController.js'
 
 export default function FlightTest() {
   const containerRef = useRef(null)
@@ -19,6 +20,7 @@ export default function FlightTest() {
 
     const airplane = createTestAirplane()
     scene.add(airplane)
+    const controller = new FlightController(airplane)
 
     function resize() {
       const width = container.clientWidth
@@ -26,14 +28,23 @@ export default function FlightTest() {
       camera.aspect = width / height
       camera.updateProjectionMatrix()
       renderer.setSize(width, height)
-      renderer.render(scene, camera)
     }
 
     resize()
     window.addEventListener('resize', resize)
 
+    let previousTime = performance.now()
+    renderer.setAnimationLoop((time) => {
+      const deltaTime = (time - previousTime) / 1000
+      previousTime = time
+      controller.update(deltaTime)
+      renderer.render(scene, camera)
+    })
+
     return () => {
+      renderer.setAnimationLoop(null)
       window.removeEventListener('resize', resize)
+      controller.dispose()
       airplane.geometry.dispose()
       airplane.material.dispose()
       renderer.dispose()
