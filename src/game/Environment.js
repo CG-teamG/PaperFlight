@@ -413,7 +413,7 @@ export function createEnvironment(THREE, scene, options = {}) {
   const zones = ZONE_TYPES.map((type, index) => {
     const col = index % ZONE_GRID,
       row = Math.floor(index / ZONE_GRID);
-    const minX = -HALF + row * ZONE_SIZE,
+    const minX = -HALF + col * ZONE_SIZE,
       minZ = -HALF + row * ZONE_SIZE;
     return {
       id: index + 1, // 1부터 시작
