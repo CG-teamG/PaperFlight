@@ -115,6 +115,11 @@ const RING_CLEARANCE = { mountain: 90, forest: 55, canyon: 60, sea: 50 }; // 지
 const RING_MIN_SPACING = 160; // 링 사이 최소 거리
 const RING_EDGE_MARGIN = 50; // 구역 경계에서 떨어질 거리
 
+// 탐험 연출
+// "terrain" = 지형별 링 통과율만큼 그 지형이 밝아짐
+// "global" = 전체 링 통과율만큼 맵 전체가 밝아짐
+export const REVEAL_MODE = "terrain";
+
 // 지형 디테일 설정
 const TERRAIN_SEGMENTS = 256; // 지형 격자 수
 const TERRAIN_FLAT_SHADING = true; // 각진면
@@ -431,6 +436,56 @@ export function createEnvironment(THREE, scene, options = {}) {
     };
   });
 
+  const ease = (p) => p * p * (3 - 2 * p);
+
+  // 구역 밝기(0~1)와 반짝임을 색으로 바꾼다.
+  //  미탐험(0): 어둡운 회색조, 대비감 낮게
+  //  탐험(1)  : 채도와 밝기를 높게
+  function revealRGB(r, g, b, rev, flash, out, idx) {
+    let gray = r * 0.299 + g * 0.587 + b * 0.114;
+    gray = lerp(gray, 0.18, (1 - rev) * 0.4);
+    const sat = rev * (1 + 0.18 * rev) + flash * 0.35;
+    const k = lerp(0.3, 1.04, rev) * (1 + 0.3 * flash);
+    out[idx] = Math.max(0, (gray + (r - gray) * sat) * lerp(0.92, 1, rev) * k);
+    out[idx + 1] = Math.max(
+      0,
+      (gray + (g - gray) * sat) * lerp(0.97, 1, rev) * k,
+    );
+    out[idx + 2] = Math.max(
+      0,
+      (gray + (b - gray) * sat) * lerp(1.08, 1, rev) * k,
+    );
+  }
+  const rgbTmp = [0, 0, 0];
+  function tintColor(base, rev, out, flash = 0) {
+    revealRGB(base.r, base.g, base.b, rev, flash, rgbTmp, 0);
+    out.setRGB(rgbTmp[0], rgbTmp[1], rgbTmp[2]);
+  }
+
+  // 구역에 속한 물체(나무)의 재질도 지형처럼 회색조 -> 원래 색으로 바뀌게 한다
+  const zoneMats = zones.map(() => []);
+  function registerZoneMaterial(zi, mat) {
+    const entry = { mat, base: mat.color.clone() };
+    zoneMats[zi].push(entry);
+    tintColor(entry.base, ease(zones[zi].p), mat.color);
+  }
+  function applyZoneTint(z) {
+    const e = ease(z.p),
+      f = z.flash * z.flash;
+    for (const m of zoneMats[z.index]) tintColor(m.base, e, m.mat.color, f);
+  }
+
+  // 바다(섬을 둘러싼 모든 물)는 구역과 상관없이 "바다 링" 통과율 하나로 밝아진다.
+  // 바다 구역(모서리)의 밝기를 그대로 따라가고, 물 셰이더와 해저 색이 이 값을 쓴다.
+  const seaZone = zones.find((z) => z.type === "sea");
+  const seaReveal = { value: 0 };
+  const seaFlash = { value: 0 };
+  function syncSeaReveal() {
+    seaReveal.value = seaZone ? ease(seaZone.p) : 0;
+    seaFlash.value = seaZone ? seaZone.flash * seaZone.flash : 0;
+  }
+  syncSeaReveal();
+
   // 1. 하늘 + 안개
   const SUN_OFFSET = new THREE.Vector3(420, 640, 260); // 비행기 기준 태양 위치
   const sunDir = SUN_OFFSET.clone().normalize();
@@ -504,6 +559,13 @@ export function createEnvironment(THREE, scene, options = {}) {
   const baseColors = new Float32Array(pos.count * 3);
   const c1 = new THREE.Color();
 
+  const vZone = new Int16Array(pos.count * 4); // 정점이 영향받는 구역 4개
+  const vWeight = new Float32Array(pos.count * 4); // 각 구역의 영향 비율
+  const colorAttr = new THREE.BufferAttribute(
+    new Float32Array(pos.count * 3),
+    3,
+  );
+
   // 1) 모든 정점의 높이를 먼저 정한다
   const heights = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
@@ -542,9 +604,41 @@ export function createEnvironment(THREE, scene, options = {}) {
       wsum += w;
     }
     baseColors.set([r / wsum, g / wsum, b / wsum], i * 3);
+    cornerWeights(x, z, 0.12).forEach(([zi, w], k) => {
+      vZone[i * 4 + k] = zi;
+      vWeight[i * 4 + k] = w;
+    });
   }
-  terrainGeo.setAttribute("color", new THREE.BufferAttribute(baseColors, 3));
+  terrainGeo.setAttribute("color", colorAttr);
   terrainGeo.computeVertexNormals(); // 높이가 바뀌었으니 음영 재계산
+
+  // 구역별 밝기(0~1)를 정점 색에 반영: 0 = 어두운 회색조(윤곽만 보임), 1 = 원래 색
+  function refreshTerrainColors() {
+    const arr = colorAttr.array;
+    const rev = zones.map((z) => ease(z.p));
+    const fl = zones.map((z) => z.flash * z.flash);
+    for (let i = 0; i < pos.count; i++) {
+      let r = 0,
+        f = 0;
+      for (let k = 0; k < 4; k++) {
+        const w = vWeight[i * 4 + k],
+          zi = vZone[i * 4 + k];
+        r += w * rev[zi];
+        f += w * fl[zi];
+      }
+      revealRGB(
+        baseColors[i * 3],
+        baseColors[i * 3 + 1],
+        baseColors[i * 3 + 2],
+        r,
+        f,
+        arr,
+        i * 3,
+      );
+    }
+    colorAttr.needsUpdate = true;
+  }
+  refreshTerrainColors();
 
   const detailTex = createDetailTexture(THREE);
   const terrain = new THREE.Mesh(
@@ -577,7 +671,7 @@ export function createEnvironment(THREE, scene, options = {}) {
   const matrixDummy = new THREE.Object3D();
   const toneColor = new THREE.Color();
 
-  function makeInstances(geometry, material, spots) {
+  function makeInstances(geometry, material, spots, zoneIndex) {
     if (!spots.length) return;
     const mesh = new THREE.InstancedMesh(geometry, material, spots.length);
     spots.forEach((s, i) => {
@@ -594,6 +688,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     mesh.instanceMatrix.needsUpdate = true;
     mesh.instanceColor.needsUpdate = true;
     root.add(mesh);
+    registerZoneMaterial(zoneIndex, material);
   }
 
   // 나무가 모여 있는 정도
@@ -647,9 +742,9 @@ export function createEnvironment(THREE, scene, options = {}) {
         roughness: 0.9,
         flatShading: true,
       });
-    makeInstances(trunkGeo, mat(0x6b4a2b), trunks);
-    makeInstances(pineGeo, mat(0x2f7d3a), pines);
-    makeInstances(roundGeo, mat(0x5f9a3c), rounds);
+    makeInstances(trunkGeo, mat(0x6b4a2b), trunks, z.index);
+    makeInstances(pineGeo, mat(0x2f7d3a), pines, z.index);
+    makeInstances(roundGeo, mat(0x5f9a3c), rounds, z.index);
   });
 
   // 구름 (바람 방향에 따라 천천히 흐르도록 구현)
@@ -1009,6 +1104,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     r.pop = 0;
     applyRingState(r);
     spawnBurst(r);
+    updateReveal(); // 링을 통과할 때마다 지형이 조금씩 밝아짐
   }
 
   // 착륙 지점 (원형 패드 + H 마크 + 조명)
@@ -1099,6 +1195,46 @@ export function createEnvironment(THREE, scene, options = {}) {
     }));
   }
 
+  // 링 통과 개수에 따라 각 구역이 도달할 밝기(0~1)를 정한다.
+  // 실제 색 변화는 update()에서 진행된다.
+  function updateReveal() {
+    const total = rings.length;
+    const globalRate = total ? rings.filter((r) => r.passed).length / total : 0;
+    // 링이 있는 지형은 해당 지형의 통과율 / 링이 없는 지형(평원)은 null
+    const own = zones.map((z) => {
+      if (REVEAL_MODE !== "terrain") return globalRate;
+      if (!RING_TERRAINS.includes(z.type)) return null;
+      const same = rings.filter((r) => r.terrain === z.type);
+      return same.length
+        ? same.filter((r) => r.passed).length / same.length
+        : 0;
+    });
+    zones.forEach((z, i) => {
+      let target = own[i];
+      if (target === null) {
+        // 평원: 맞닿은 지형 구역들의 평균을 따라가며 함께 밝아진다
+        const nb = [];
+        for (const [dc, dr] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ]) {
+          const c = z.col + dc,
+            r = z.row + dr;
+          if (c < 0 || r < 0 || c >= ZONE_GRID || r >= ZONE_GRID) continue;
+          const v = own[r * ZONE_GRID + c];
+          if (v !== null) nb.push(v);
+        }
+        target = nb.length
+          ? nb.reduce((a, b) => a + b, 0) / nb.length
+          : globalRate;
+      }
+      if (target > z.target + 1e-6) z.flash = 1; // 새로 밝아지는 순간 효과
+      z.target = target;
+    });
+  }
+
   // 전체 탐험률 (통과한 링 / 전체 링), 0~1
   function getExplorationRate() {
     return rings.length
@@ -1121,6 +1257,14 @@ export function createEnvironment(THREE, scene, options = {}) {
 
   // 새 게임: 지형을 회색조로 되돌리고, 링을 새로 랜덤 배치한다.
   function reset() {
+    zones.forEach((z) => {
+      z.p = 0;
+      z.target = 0;
+      z.flash = 0;
+      applyZoneTint(z);
+    });
+    syncSeaReveal();
+    refreshTerrainColors();
     buildRings();
     setActiveRing(1);
   }
@@ -1128,6 +1272,33 @@ export function createEnvironment(THREE, scene, options = {}) {
   // 매 프레임 갱신 조건
   function update(delta, planePosition) {
     elapsed += delta;
+
+    // 탐험 연출: 구역 밝기가 목표값으로  변함 + 공개 순간 반짝임(flash)이 사라짐
+    let dirty = false;
+    const tintStep = delta / 1.6;
+    for (const z of zones) {
+      let changed = false;
+      if (z.p !== z.target) {
+        z.p =
+          z.p < z.target
+            ? Math.min(z.target, z.p + tintStep)
+            : Math.max(z.target, z.p - tintStep);
+        changed = true;
+      }
+      if (z.flash > 0) {
+        z.flash = Math.max(0, z.flash - delta / 1.1);
+        changed = true;
+      }
+      if (changed) {
+        applyZoneTint(z);
+        dirty = true;
+      }
+    }
+    if (dirty) {
+      syncSeaReveal();
+      refreshTerrainColors();
+    }
+
     // 구름 흐름
     for (const c of clouds) {
       c.position.x += wind.x * WIND_VISUAL_SPEED * c.userData.speed * delta;
