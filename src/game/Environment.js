@@ -134,6 +134,12 @@ const TREE_TRIES = {
   sea: 90,
 };
 
+// 미탐험 구역을 덮는 구름 베일 (탐험하면 걷힘)
+const VEIL_ENABLED = true;
+const VEIL_OPACITY = 0.5; // 0~1, 낮출수록 아래 지형이 더 비쳐 보임
+const VEIL_COLOR = 0x5f6a79;
+const VEIL_GRID = 4; // 구역당 구름 VEIL_GRID x VEIL_GRID개
+
 // 이음새 없는 노이즈
 function tileNoise(x, y, period) {
   const x0 = Math.floor(x),
@@ -473,6 +479,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     const e = ease(z.p),
       f = z.flash * z.flash;
     for (const m of zoneMats[z.index]) tintColor(m.base, e, m.mat.color, f);
+    applyVeil(z); // 탐험 이후 구름이 걷힘
   }
 
   // 바다(섬을 둘러싼 모든 물)는 구역과 상관없이 "바다 링" 통과율 하나로 밝아진다.
@@ -814,6 +821,67 @@ export function createEnvironment(THREE, scene, options = {}) {
     cloud.scale.setScalar(0.8 + cloudRand() * 1.0);
     clouds.push(cloud);
     root.add(cloud);
+  }
+
+  // 구름 베일: 미탐험 구역 위에 낮게 깔린 두꺼운 구름.
+  // 저지대는 가리고 높은 봉우리는 구름 위로 솟는다.
+  // 구역이 공개되면 위로 걷히며 옅어진다. -> 기존 구름 텍스처 재사용
+  const veils = zones.map((z) => {
+    const group = new THREE.Group();
+    group.visible = VEIL_ENABLED;
+    let sum = 0,
+      cnt = 0;
+    for (let i = 0; i <= 6; i++)
+      for (let j = 0; j <= 6; j++) {
+        sum += Math.max(
+          0,
+          heightAt(
+            lerp(z.min.x, z.max.x, i / 6),
+            lerp(z.min.z, z.max.z, j / 6),
+          ),
+        );
+        cnt++;
+      }
+    const y = Math.max(40, sum / cnt + 25); // 구역 평균 지면 높이보다 위
+    group.position.set(z.center.x, y, z.center.z);
+    const mats = cloudTextures.map(
+      (tex) =>
+        new THREE.SpriteMaterial({
+          map: tex,
+          color: VEIL_COLOR,
+          transparent: true,
+          opacity: VEIL_OPACITY,
+          depthWrite: false,
+        }),
+    );
+    const rand = mulberry32(5000 + z.index * 31);
+    if (VEIL_ENABLED) {
+      for (let a = 0; a < VEIL_GRID; a++)
+        for (let b = 0; b < VEIL_GRID; b++) {
+          const puff = new THREE.Sprite(mats[(a + b * 2) % mats.length]);
+          const w = 300 + rand() * 120;
+          puff.scale.set(w, w * 0.6, 1);
+          puff.position.set(
+            ((a + 0.5) / VEIL_GRID - 0.5) * ZONE_SIZE + (rand() - 0.5) * 70,
+            (rand() - 0.5) * 24,
+            ((b + 0.5) / VEIL_GRID - 0.5) * ZONE_SIZE + (rand() - 0.5) * 70,
+          );
+          group.add(puff);
+        }
+    }
+    root.add(group);
+    return { group, mats, y, spin: (rand() - 0.5) * 0.05 };
+  });
+
+  function applyVeil(z) {
+    const v = veils[z.index];
+    if (!VEIL_ENABLED) return;
+    const e = ease(z.p);
+    const op = VEIL_OPACITY * (1 - e);
+    for (const m of v.mats) m.opacity = op;
+    v.group.visible = op > 0.01;
+    v.group.scale.setScalar(1 + 0.3 * e); // 걷히며 사방으로 퍼짐
+    v.group.position.y = v.y + 35 * e; // 위로 올라가며 사라짐
   }
 
   // 바람 설정
@@ -1298,6 +1366,10 @@ export function createEnvironment(THREE, scene, options = {}) {
       syncSeaReveal();
       refreshTerrainColors();
     }
+
+    // 구름 베일이 천천히 맴도는 모양
+    for (const v of veils)
+      if (v.group.visible) v.group.rotation.y += v.spin * delta;
 
     // 구름 흐름
     for (const c of clouds) {
