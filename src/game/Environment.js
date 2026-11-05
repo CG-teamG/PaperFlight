@@ -16,16 +16,23 @@ export const ZONE_SIZE = MAP_SIZE / ZONE_GRID; // 500
 const HALF = MAP_SIZE / 2;
 const SEA_LEVEL = 0;
 
+// 섬 윤곽: 사각형인 맵 중심에서 거리가 커질수록 섬이 더 바다로 가라앉는다.
+// 윤곽은 노이즈로 경계가 흐릿해지고, 바깥은 섬(작은 섬들)이 있는 바다가 된다.
+const ISLAND_COAST0 = 700; // 이 이후로는 해안으로 낮아지기 시작
+const ISLAND_COAST1 = 860; // 이 이후로는 완전한 바다
+
 // 시작과 착륙 위치
 const START = { x: -250, z: -250, altitude: 120 }; // 지면 위 높이
 const LANDING_PAD = { x: 250, z: 250, radius: 34, y: 12 };
 
 // 구역 지형 배치 [z][x]
+// 바다는 섬을 둘러싸도록 변경
+// 네 모서리 구역은 바다만, 나머지 가장자리는 해안선(heightAt의 섬 윤곽)으로 바다와 이어진다.
 export const ZONE_LAYOUT = [
-  ["mountain", "mountain", "canyon", "canyon"],
-  ["forest", "plain", "mountain", "sea"],
-  ["forest", "forest", "plain", "sea"],
-  ["plain", "forest", "sea", "sea"],
+  ["sea", "mountain", "canyon", "sea"],
+  ["forest", "plain", "mountain", "canyon"],
+  ["forest", "forest", "plain", "mountain"],
+  ["sea", "forest", "plain", "sea"],
 ];
 
 const ZONE_TYPES = ZONE_LAYOUT.flat();
@@ -228,6 +235,23 @@ function heightAt(x, z) {
     if (w < 1e-4) continue;
     h += w * TYPE_HEIGHT[ZONE_TYPES[zi]](x, z);
   }
+  // 섬 윤곽: 해안에 가까워지면 먼저 낮고 완만한 해변으로, 그 너머는 바다(해저 + 작은 섬)로
+  const dCoast = Math.pow(
+    Math.pow(Math.abs(x), 4) + Math.pow(Math.abs(z), 4),
+    0.25,
+  );
+  const coast = dCoast + (fbm(x * 0.0022 + 31, z * 0.0022 + 17, 3) - 0.5) * 420;
+  if (h > 5)
+    h = lerp(
+      h,
+      5,
+      smooth(ISLAND_COAST0 - 120, ISLAND_COAST1 - 40, coast) * 0.9,
+    );
+  h = lerp(
+    h,
+    TYPE_HEIGHT.sea(x, z),
+    smooth(ISLAND_COAST0, ISLAND_COAST1, coast),
+  );
   // 맵 가장자리는 바다로 가라앉힘
   const edge = Math.max(Math.abs(x), Math.abs(z));
   h = lerp(h, -40, smooth(HALF - 140, HALF, edge));
