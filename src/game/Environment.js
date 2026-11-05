@@ -113,6 +113,15 @@ const TERRAIN_SEGMENTS = 256; // 지형 격자 수
 const TERRAIN_FLAT_SHADING = true; // 각진면
 const DETAIL_TEXTURE_REPEAT = 60; // 지면 질감이 반복되는 횟수
 
+// 구역 하나당 나무 배치 개수
+const TREE_TRIES = {
+  forest: 900,
+  plain: 110,
+  mountain: 240,
+  canyon: 0,
+  sea: 90,
+};
+
 // 이음새 없는 노이즈
 function tileNoise(x, y, period) {
   const x0 = Math.floor(x),
@@ -229,6 +238,14 @@ const TYPE_HEIGHT = {
   },
 };
 
+// 경사 = 기울기(높이 변화 / 거리)
+function slopeAt(x, z) {
+  const h = heightAt(x, z);
+  return (
+    (Math.abs(heightAt(x + 4, z) - h) + Math.abs(heightAt(x, z + 4) - h)) / 4
+  );
+}
+
 function heightAt(x, z) {
   let h = 0;
   for (const [zi, w] of cornerWeights(x, z, 0.5)) {
@@ -325,6 +342,23 @@ function createDetailTexture(THREE) {
   tex.repeat.set(DETAIL_TEXTURE_REPEAT, DETAIL_TEXTURE_REPEAT);
   tex.needsUpdate = true;
   return tex;
+}
+
+// 여러 지오메트리를 하나로 합친다 (여러 모양을 하나로 묶음)
+function mergeGeometries(THREE, geos) {
+  const parts = geos.map(
+    (g) => (g.index ? g.toNonIndexed() : g).attributes.position.array,
+  );
+  const positions = new Float32Array(parts.reduce((n, a) => n + a.length, 0));
+  let offset = 0;
+  for (const a of parts) {
+    positions.set(a, offset);
+    offset += a.length;
+  }
+  const merged = new THREE.BufferGeometry();
+  merged.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  merged.computeVertexNormals();
+  return merged;
 }
 
 function mulberry32(a) {
@@ -509,6 +543,96 @@ export function createEnvironment(THREE, scene) {
   terrain.receiveShadow = true;
   terrain.castShadow = true;
   root.add(terrain);
+
+  // 나무
+  // 구역마다 InstancedMesh로 한꺼번에 그린다
+  const trunkGeo = new THREE.CylinderGeometry(0.5, 0.8, 4, 5).translate(
+    0,
+    2,
+    0,
+  );
+  const pineGeo = mergeGeometries(THREE, [
+    new THREE.ConeGeometry(4.4, 9, 7).translate(0, 7.5, 0),
+    new THREE.ConeGeometry(3.2, 7, 7).translate(0, 12.5, 0),
+  ]);
+  const roundGeo = new THREE.IcosahedronGeometry(3.4, 0).translate(0, 7, 0);
+  const matrixDummy = new THREE.Object3D();
+  const toneColor = new THREE.Color();
+
+  function makeInstances(geometry, material, spots) {
+    if (!spots.length) return;
+    const mesh = new THREE.InstancedMesh(geometry, material, spots.length);
+    spots.forEach((s, i) => {
+      matrixDummy.position.set(s.x, s.y, s.z);
+      matrixDummy.rotation.set(0, s.ry, 0);
+      matrixDummy.scale.set(s.sx, s.sy, s.sz);
+      matrixDummy.updateMatrix();
+      mesh.setMatrixAt(i, matrixDummy.matrix);
+      mesh.setColorAt(i, toneColor.setScalar(s.tone)); // 개체마다 밝기를 조금씩 다르게
+    });
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceColor.needsUpdate = true;
+    root.add(mesh);
+  }
+
+  // 나무가 모여 있는 정도
+  function vegetationMask(type, x, z) {
+    const n = fbm(x * 0.012 + 20, z * 0.012 + 20, 3);
+    if (type === "forest") return 0.25 + 0.75 * smooth(0.35, 0.55, n);
+    if (type === "plain") return smooth(0.58, 0.7, n);
+    if (type === "mountain") return 0.5 * smooth(0.4, 0.6, n);
+    return 1; // 섬
+  }
+
+  zones.forEach((z) => {
+    const rand = mulberry32(1234 + z.index * 97);
+    const trunks = [],
+      pines = [],
+      rounds = [];
+    const hMax = z.type === "sea" ? 45 : 115;
+
+    for (let t = 0; t < TREE_TRIES[z.type]; t++) {
+      const x = lerp(z.min.x + 8, z.max.x - 8, rand());
+      const zz = lerp(z.min.z + 8, z.max.z - 8, rand());
+      const h = heightAt(x, zz);
+      if (h < 5 || h > hMax) continue;
+      if (slopeAt(x, zz) > 0.75) continue; // 가파른 곳에는 나무가 자라지 않음
+      if (rand() > vegetationMask(z.type, x, zz)) continue;
+      if (
+        Math.hypot(x - LANDING_PAD.x, zz - LANDING_PAD.z) <
+        LANDING_PAD.radius + 30
+      )
+        continue;
+      if (Math.hypot(x - START.x, zz - START.z) < 25) continue;
+
+      const s = 0.8 + rand() * 0.9;
+      const ry = rand() * Math.PI * 2;
+      const tone = 0.82 + rand() * 0.3;
+      const base = { x, y: h, z: zz, ry, tone };
+      trunks.push({ ...base, sx: s, sy: s, sz: s });
+      const pine =
+        z.type === "forest"
+          ? rand() < 0.7
+          : z.type === "mountain"
+            ? true
+            : rand() < 0.2;
+      if (pine) pines.push({ ...base, sx: s, sy: s, sz: s });
+      else rounds.push({ ...base, sx: s, sy: s * (0.9 + rand() * 0.3), sz: s });
+    }
+
+    const mat = (hex) =>
+      new THREE.MeshStandardMaterial({
+        color: hex,
+        roughness: 0.9,
+        flatShading: true,
+      });
+    makeInstances(trunkGeo, mat(0x6b4a2b), trunks);
+    makeInstances(pineGeo, mat(0x2f7d3a), pines);
+    makeInstances(roundGeo, mat(0x5f9a3c), rounds);
+  });
 
   // 구름 (바람 방향에 따라 천천히 흐르도록 구현)
   function createCloudTexture(seed) {
