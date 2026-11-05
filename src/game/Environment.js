@@ -108,6 +108,13 @@ export const RING_RADIUS = 22;
 // 지역 발견 반지름 -> ExplorationSystem에 radius로 반영
 export const REGION_RADIUS = 300;
 
+// 링은 지형 4종에 4개씩(총 16개), 각 지형 구역 안에서 매번 랜덤하게 배치된다(난수)
+export const RING_TERRAINS = ["mountain", "forest", "canyon", "sea"];
+export const RINGS_PER_TERRAIN = 4;
+const RING_CLEARANCE = { mountain: 90, forest: 55, canyon: 60, sea: 50 }; // 지형별 지면 위 높이
+const RING_MIN_SPACING = 160; // 링 사이 최소 거리
+const RING_EDGE_MARGIN = 50; // 구역 경계에서 떨어질 거리
+
 // 지형 디테일 설정
 const TERRAIN_SEGMENTS = 256; // 지형 격자 수
 const TERRAIN_FLAT_SHADING = true; // 각진면
@@ -144,22 +151,23 @@ const warpX = (x, z, s, amp) =>
 const warpZ = (x, z, s, amp) =>
   z + (fbm(x * s + 5.7, z * s + 9.1, 3) - 0.5) * amp;
 
-export const RING_PATH = [
-  { x: -60, z: -170, clearance: 50 },
-  { x: 120, z: -250, clearance: 60 },
-  { x: 300, z: -300, clearance: 90 }, // 산
-  { x: 480, z: -480, clearance: 90 },
-  { x: 620, z: -700, clearance: 60 }, // 협곡
-  { x: 400, z: -800, clearance: 60 },
-  { x: 150, z: -650, clearance: 60 },
-  { x: -100, z: -700, clearance: 90 }, // 산
-  { x: -400, z: -450, clearance: 70 },
-  { x: -650, z: -200, clearance: 55 }, // 숲
-  { x: -700, z: 200, clearance: 55 },
-  { x: -400, z: 350, clearance: 55 },
-  { x: -100, z: 300, clearance: 50 },
-  { x: 150, z: 260, clearance: 40 }, // 착륙 지점 직전
-];
+// 링 랜덤 배치로 변경
+// export const RING_PATH = [
+//   { x: -60, z: -170, clearance: 50 },
+//   { x: 120, z: -250, clearance: 60 },
+//   { x: 300, z: -300, clearance: 90 }, // 산
+//   { x: 480, z: -480, clearance: 90 },
+//   { x: 620, z: -700, clearance: 60 }, // 협곡
+//   { x: 400, z: -800, clearance: 60 },
+//   { x: 150, z: -650, clearance: 60 },
+//   { x: -100, z: -700, clearance: 90 }, // 산
+//   { x: -400, z: -450, clearance: 70 },
+//   { x: -650, z: -200, clearance: 55 }, // 숲
+//   { x: -700, z: 200, clearance: 55 },
+//   { x: -400, z: 350, clearance: 55 },
+//   { x: -100, z: 300, clearance: 50 },
+//   { x: 150, z: 260, clearance: 40 }, // 착륙 지점 직전
+// ];
 
 // 좌표 주변 4개 구역 중심에 대한 보간 가중치 -> 구역 경계에서 지형이 부드럽게 이어짐
 // band: 0.5면 부드럽게(높이용), 작을수록 경계가 또렷해짐(색상 공개용)
@@ -269,6 +277,11 @@ function heightAt(x, z) {
     TYPE_HEIGHT.sea(x, z),
     smooth(ISLAND_COAST0, ISLAND_COAST1, coast),
   );
+
+  // 착륙 지점 = 주변 평탄하게
+  const d = Math.hypot(x - LANDING_PAD.x, z - LANDING_PAD.z);
+  h = lerp(h, LANDING_PAD.y, 1 - smooth(45, 120, d));
+
   // 맵 가장자리는 바다로 가라앉힘
   const edge = Math.max(Math.abs(x), Math.abs(z));
   h = lerp(h, -40, smooth(HALF - 140, HALF, edge));
@@ -381,13 +394,18 @@ export function configureRenderer(THREE, renderer) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 }
 
-export function createEnvironment(THREE, scene) {
+export function createEnvironment(THREE, scene, options = {}) {
   // 환경 객체를 한 그룹에 모아 둔다 -> 나중에 정리(dispose)하기 쉽도록
   const root = new THREE.Group();
   root.name = "Environment";
   scene.add(root);
 
   let elapsed = 0; // 게임이 시작된 뒤 흐른 시간(초). 링 깜빡임 등에 사용
+
+  // 링 배치용 난수 -> options.seed를 주면 같은 배치 / 없으면 매번 새로 배치
+  const ringRand = mulberry32(
+    options.seed ?? Math.floor(Math.random() * 2147483647),
+  );
 
   const tmpColor = new THREE.Color(); // 색을 섞을 때 쓰는 임시 색 (groundColor에 전달)
 
@@ -719,64 +737,206 @@ export function createEnvironment(THREE, scene) {
 
   const RING_COLORS = { idle: 0xffa726, active: 0xffe082, passed: 0x5fe08a };
   const rings = [];
-  const ringPositions = RING_PATH.map(
-    (r) => new THREE.Vector3(r.x, groundMax(r.x, r.z, 60) + r.clearance, r.z),
-  );
+  // const ringPositions = RING_PATH.map(
+  //   (r) => new THREE.Vector3(r.x, groundMax(r.x, r.z, 60) + r.clearance, r.z),
+  // );
   const padTop = new THREE.Vector3(
     LANDING_PAD.x,
     LANDING_PAD.y + 30,
     LANDING_PAD.z,
   );
 
-  ringPositions.forEach((pos, i) => {
-    const next = i < ringPositions.length - 1 ? ringPositions[i + 1] : padTop;
-    const normal = next.clone().sub(pos).normalize(); // 링 통과 진행 방향
+  // 지형 종류마다 {RINGS_PER_TERRAIN}개씩
+  // 각 지형 구역 안에서 랜덤 위치를 뽑는다.
+  function generateRingSpots(rand) {
+    const spots = [];
+    const limit = HALF - 150; // 맵 가장자리(바다로 가라앉는 곳)는 피함
+    const farEnough = (x, z) =>
+      spots.every((s) => Math.hypot(s.x - x, s.z - z) >= RING_MIN_SPACING) &&
+      Math.hypot(x - START.x, z - START.z) >= RING_MIN_SPACING &&
+      Math.hypot(x - LANDING_PAD.x, z - LANDING_PAD.z) >=
+        RING_MIN_SPACING * 0.6;
 
-    const group = new THREE.Group();
-    group.position.copy(pos);
-    group.lookAt(pos.clone().add(normal)); // 링 평면의 법선(+Z)이 진행 방향을 향함
+    // 바다 링: 섬 둘레를 따라 사방으로, 각자 해안 바깥의 물 위에서 위치를 뽑는다.
+    function addSeaRings() {
+      const base = rand() * Math.PI * 2;
+      for (let k = 0; k < RINGS_PER_TERRAIN; k++) {
+        const ang =
+          base + ((k + (rand() - 0.5) * 0.5) * Math.PI * 2) / RINGS_PER_TERRAIN;
+        const dx = Math.cos(ang),
+          dz = Math.sin(ang);
+        // 섬 가장자리: 처음 물이 나올 때까지의 거리
+        let rc = 300;
+        while (rc < 1600 && heightAt(dx * rc, dz * rc) > -1) rc += 20;
+        const rEdge = (HALF - 70) / Math.max(Math.abs(dx), Math.abs(dz)); // 맵 가장자리까지의 거리
+        const rMin = rc + 50;
+        const rMax = Math.max(rMin + 1, rEdge);
+        let x = dx * Math.min(rMin, rEdge * 0.97),
+          z = dz * Math.min(rMin, rEdge * 0.97);
+        for (let attempt = 0; attempt < 120; attempt++) {
+          const r = lerp(rMin, rMax, rand());
+          const side = (rand() - 0.5) * 160; // 해안선과 나란한 방향으로 흔들기
+          const cx = dx * r - dz * side,
+            cz = dz * r + dx * side;
+          if (Math.max(Math.abs(cx), Math.abs(cz)) > HALF - 70) continue;
+          if (heightAt(cx, cz) > -2) continue; // 물 위에만
+          if (!farEnough(cx, cz)) continue;
+          x = cx;
+          z = cz;
+          break;
+        }
+        spots.push({ x, z, type: "sea" });
+      }
+    }
 
-    const tube = RING_RADIUS * 0.14;
-    const mat = new THREE.MeshStandardMaterial({
-      color: RING_COLORS.idle,
-      emissive: RING_COLORS.idle,
-      emissiveIntensity: 0.55,
-      roughness: 0.4,
-      metalness: 0.2,
-    });
-    const main = new THREE.Mesh(
-      new THREE.TorusGeometry(RING_RADIUS, tube, 16, 56),
-      mat,
+    for (const type of RING_TERRAINS) {
+      if (type === "sea") {
+        addSeaRings();
+        continue;
+      }
+      const typeZones = zones.filter((z) => z.type === type);
+      for (let i = typeZones.length - 1; i > 0; i--) {
+        // 구역 순서를 섞어서 링이 여러 구역에 퍼지게
+        const j = Math.floor(rand() * (i + 1));
+        [typeZones[i], typeZones[j]] = [typeZones[j], typeZones[i]];
+      }
+      for (let k = 0; k < RINGS_PER_TERRAIN; k++) {
+        const zone = typeZones[k % typeZones.length];
+        let x = 0,
+          z = 0;
+        for (let attempt = 0; attempt < 120; attempt++) {
+          x = lerp(
+            zone.min.x + RING_EDGE_MARGIN,
+            zone.max.x - RING_EDGE_MARGIN,
+            rand(),
+          );
+          z = lerp(
+            zone.min.z + RING_EDGE_MARGIN,
+            zone.max.z - RING_EDGE_MARGIN,
+            rand(),
+          );
+          // 육지 링은 육지 위에서만 (해안선 안쪽)
+          if (
+            Math.max(Math.abs(x), Math.abs(z)) < limit &&
+            heightAt(x, z) > 8 &&
+            farEnough(x, z)
+          )
+            break;
+        }
+        spots.push({ x, z, type });
+      }
+    }
+    return spots;
+  }
+
+  // 시작 위치에서 가까운 링부터 이어지도록
+  function orderByNearest(spots) {
+    const left = [...spots],
+      ordered = [];
+    let cx = START.x,
+      cz = START.z;
+    while (left.length) {
+      let best = 0,
+        bestD = Infinity;
+      left.forEach((s, i) => {
+        const d = Math.hypot(s.x - cx, s.z - cz);
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      const [s] = left.splice(best, 1);
+      ordered.push(s);
+      cx = s.x;
+      cz = s.z;
+    }
+    return ordered;
+  }
+
+  function clearRings() {
+    for (const r of rings) {
+      root.remove(r.mesh);
+      r.mesh.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+    }
+    rings.length = 0; // 같은 배열을 유지 (env.rings 참조가 깨지지 않게)
+    activeRing = -1;
+    for (const b of bursts) {
+      root.remove(b.pts);
+      b.pts.geometry.dispose();
+      b.pts.material.dispose();
+    }
+    bursts.length = 0;
+  }
+
+  function buildRings() {
+    clearRings();
+    const spots = orderByNearest(generateRingSpots(ringRand));
+    const positions = spots.map(
+      (s) =>
+        new THREE.Vector3(
+          s.x,
+          groundMax(s.x, s.z, 60) + RING_CLEARANCE[s.type],
+          s.z,
+        ),
     );
-    const haloMat = new THREE.MeshBasicMaterial({
-      color: RING_COLORS.idle,
-      transparent: true,
-      opacity: 0.22,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const halo = new THREE.Mesh(
-      new THREE.TorusGeometry(RING_RADIUS, tube * 2.6, 12, 56),
-      haloMat,
-    );
-    main.castShadow = true;
-    group.add(main, halo);
-    root.add(group);
 
-    rings.push({
-      id: i + 1,
-      mesh: group,
-      position: pos.clone(),
-      normal,
-      radius: RING_RADIUS,
-      innerRadius: RING_RADIUS - tube,
-      passed: false,
-      state: "idle",
-      pop: 1,
-      _mat: mat,
-      _haloMat: haloMat,
+    positions.forEach((pos, i) => {
+      const next = i < positions.length - 1 ? positions[i + 1] : padTop;
+      const normal = next.clone().sub(pos).normalize(); // 링 통과 진행 방향
+
+      const group = new THREE.Group();
+      group.position.copy(pos);
+      group.lookAt(pos.clone().add(normal)); // 링 평면의 법선(+Z)이 진행 방향을 향함
+
+      const tube = RING_RADIUS * 0.14;
+      const mat = new THREE.MeshStandardMaterial({
+        color: RING_COLORS.idle,
+        emissive: RING_COLORS.idle,
+        emissiveIntensity: 0.55,
+        roughness: 0.4,
+        metalness: 0.2,
+      });
+      const main = new THREE.Mesh(
+        new THREE.TorusGeometry(RING_RADIUS, tube, 16, 56),
+        mat,
+      );
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: RING_COLORS.idle,
+        transparent: true,
+        opacity: 0.22,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const halo = new THREE.Mesh(
+        new THREE.TorusGeometry(RING_RADIUS, tube * 2.6, 12, 56),
+        haloMat,
+      );
+      main.castShadow = true;
+      group.add(main, halo);
+      root.add(group);
+
+      rings.push({
+        id: i + 1,
+        terrain: spots[i].type,
+        mesh: group,
+        position: pos.clone(),
+        normal,
+        radius: RING_RADIUS,
+        innerRadius: RING_RADIUS - tube,
+        passed: false,
+        state: "idle",
+        pop: 1,
+        _mat: mat,
+        _haloMat: haloMat,
+      });
     });
-  });
+
+    // 첫 링 방향으로 시작 방향을 갱신
+    start.direction.copy(positions[0]).sub(start.position).setY(0).normalize();
+  }
 
   function applyRingState(ring) {
     const hex = RING_COLORS[ring.state];
@@ -850,6 +1010,62 @@ export function createEnvironment(THREE, scene) {
     applyRingState(r);
     spawnBurst(r);
   }
+
+  // 착륙 지점 (원형 패드 + H 마크 + 조명)
+  const pad = new THREE.Group();
+  pad.position.set(LANDING_PAD.x, LANDING_PAD.y + 0.5, LANDING_PAD.z);
+  const R = LANDING_PAD.radius;
+
+  const padBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(R, R * 1.04, 2.4, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x8e949c,
+      roughness: 0.8,
+      flatShading: true,
+    }),
+  );
+  padBase.receiveShadow = true;
+  padBase.castShadow = true;
+
+  const padRing = new THREE.Mesh(
+    new THREE.TorusGeometry(R * 0.86, 1.1, 8, 64),
+    new THREE.MeshStandardMaterial({
+      color: 0xff7043,
+      emissive: 0xff7043,
+      emissiveIntensity: 0.4,
+    }),
+  );
+  padRing.rotation.x = Math.PI / 2;
+  padRing.position.y = 1.25;
+
+  const markMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.6,
+  });
+  const bar = (w, d, x) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), markMat);
+    m.position.set(x, 1.3, 0);
+    return m;
+  };
+  pad.add(padBase, padRing, bar(3.2, 22, -7), bar(3.2, 22, 7), bar(17, 3.2, 0));
+  root.add(pad);
+
+  // 멀리서도 보이게
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: 0xffd54f,
+    transparent: true,
+    opacity: 0.2,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(5, 7, 140, 20, 1, true),
+    beamMat,
+  );
+  beam.position.set(LANDING_PAD.x, LANDING_PAD.y + 70, LANDING_PAD.z);
+  root.add(beam);
+
   // 시작 위치: 서쪽 평원 위, 첫 링을 바라보는 방향
   const startGround = Math.max(heightAt(START.x, START.z), SEA_LEVEL);
   const startPos = new THREE.Vector3(
@@ -857,7 +1073,7 @@ export function createEnvironment(THREE, scene) {
     startGround + START.altitude,
     START.z,
   );
-  const startDir = ringPositions[0].clone().sub(startPos).setY(0).normalize();
+  const start = { position: startPos, direction: new THREE.Vector3(0, 0, 1) }; // 방향은 buildRings()에서 갱신
 
   // RingSystem에 넘길 링 데이터: { id, position, radius, normal }
   const toXYZ = (v) => ({ x: v.x, y: v.y, z: v.z });
@@ -881,6 +1097,32 @@ export function createEnvironment(THREE, scene) {
       radius: REGION_RADIUS,
       ignoreY: true,
     }));
+  }
+
+  // 전체 탐험률 (통과한 링 / 전체 링), 0~1
+  function getExplorationRate() {
+    return rings.length
+      ? rings.filter((r) => r.passed).length / rings.length
+      : 0;
+  }
+
+  // 지형별 통과 현황 { mountain: { passed, total }, ... }
+  function getTerrainProgress() {
+    const out = {};
+    for (const type of RING_TERRAINS) {
+      const same = rings.filter((r) => r.terrain === type);
+      out[type] = {
+        passed: same.filter((r) => r.passed).length,
+        total: same.length,
+      };
+    }
+    return out;
+  }
+
+  // 새 게임: 지형을 회색조로 되돌리고, 링을 새로 랜덤 배치한다.
+  function reset() {
+    buildRings();
+    setActiveRing(1);
   }
 
   // 매 프레임 갱신 조건
@@ -923,6 +1165,9 @@ export function createEnvironment(THREE, scene) {
         bursts.splice(i, 1);
       }
     }
+
+    beamMat.opacity = 0.18 + 0.05 * Math.sin(elapsed * 2); // H 구역 조명
+
     if (planePosition) {
       sky.position.copy(planePosition); // 하늘이 항상 비행기를 따라감
       sun.target.position.set(
@@ -947,11 +1192,13 @@ export function createEnvironment(THREE, scene) {
     detailTex.dispose(); // 지면 질감 해제
     scene.remove(root);
   }
+  reset(); // 초기 상태: 전체 회색조, 링 랜덤 배치, 첫 링 강조
 
   return {
     root,
     update,
     dispose,
+    reset,
     getGroundHeight: (x, z) => Math.max(heightAt(x, z), SEA_LEVEL), // 지면 충돌 판정용 (바다는 수면 높이)
     setWind: (x, z) => {
       wind.x = x;
@@ -961,12 +1208,23 @@ export function createEnvironment(THREE, scene) {
     setActiveRing,
     markRingPassed,
     getRingData, // 링
+    getExplorationRate,
+    getTerrainProgress, // 탐험률
     zones,
     getRegionData,
     getZoneAt: (x, z) => {
       const i = zoneIndexAt(x, z);
       return i < 0 ? -1 : i + 1;
     },
-    start: { position: startPos, direction: startDir },
+    start,
+    landingPad: {
+      position: new THREE.Vector3(
+        LANDING_PAD.x,
+        LANDING_PAD.y + 1.7,
+        LANDING_PAD.z,
+      ),
+      radius: LANDING_PAD.radius,
+    },
+    mapSize: MAP_SIZE,
   };
 }
