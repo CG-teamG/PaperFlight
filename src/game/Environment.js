@@ -101,6 +101,33 @@ export const RING_RADIUS = 22;
 // 지역 발견 반지름 -> ExplorationSystem에 radius로 반영
 export const REGION_RADIUS = 300;
 
+// 지형 디테일 설정
+const TERRAIN_SEGMENTS = 256; // 지형 격자 수
+const TERRAIN_FLAT_SHADING = true; // 각진면
+const DETAIL_TEXTURE_REPEAT = 60; // 지면 질감이 반복되는 횟수
+
+// 이음새 없는 노이즈
+function tileNoise(x, y, period) {
+  const x0 = Math.floor(x),
+    y0 = Math.floor(y);
+  const fx = x - x0,
+    fy = y - y0;
+  const u = fx * fx * (3 - 2 * fx),
+    v = fy * fy * (3 - 2 * fy);
+  const w = (i) => ((i % period) + period) % period;
+  return lerp(
+    lerp(hash2(w(x0), w(y0)), hash2(w(x0 + 1), w(y0)), u),
+    lerp(hash2(w(x0), w(y0 + 1)), hash2(w(x0 + 1), w(y0 + 1)), u),
+    v,
+  );
+}
+
+// 좌표를 노이즈로 비틂 -> 능선과 해안선 디테일 추가
+const warpX = (x, z, s, amp) =>
+  x + (fbm(x * s + 11.1, z * s + 3.3, 3) - 0.5) * amp;
+const warpZ = (x, z, s, amp) =>
+  z + (fbm(x * s + 5.7, z * s + 9.1, 3) - 0.5) * amp;
+
 export const RING_PATH = [
   { x: -60, z: -170, clearance: 50 },
   { x: 120, z: -250, clearance: 60 },
@@ -157,16 +184,41 @@ function zoneIndexAt(x, z) {
 }
 
 const TYPE_HEIGHT = {
-  plain: (x, z) => 8 + fbm(x * 0.003, z * 0.003, 3) * 18,
-  forest: (x, z) => 10 + fbm(x * 0.004, z * 0.004, 4) * 42,
-  sea: (x, z) => -35 + fbm(x * 0.005, z * 0.005, 3) * 14,
-  mountain: (x, z) => 40 + Math.pow(ridged(x * 0.004, z * 0.004, 5), 1.7) * 330,
+  // 평원: 완만한 언덕 + 작은 기복
+  plain: (x, z) =>
+    8 +
+    fbm(x * 0.003, z * 0.003, 3) * 18 +
+    (fbm(x * 0.015 + 3.1, z * 0.015 + 7.7, 3) - 0.5) * 5,
+  // 숲: 구릉과 골짜기
+  forest: (x, z) =>
+    10 +
+    fbm(x * 0.004, z * 0.004, 4) * 42 +
+    (fbm(x * 0.014 + 8.2, z * 0.014 + 1.4, 3) - 0.5) * 9,
+  // 바다: 해저 + 가끔 솟아오른 섬
+  sea: (x, z) => {
+    const floor = -35 + fbm(x * 0.005, z * 0.005, 3) * 14;
+    const island =
+      Math.max(0, fbm(x * 0.006 + 40, z * 0.006 + 40, 4) - 0.6) * 320;
+    return floor + island;
+  },
+  // 산: 비틀린 능선 + 큰 산줄기 + 바위 표면의 잔 요철
+  mountain: (x, z) => {
+    const wx = warpX(x, z, 0.002, 260),
+      wz = warpZ(x, z, 0.002, 260);
+    const ridge = ridged(wx * 0.0045, wz * 0.0045, 6);
+    const massif = fbm(x * 0.0015 + 2.2, z * 0.0015 + 8.8, 3); // 산줄기가 큰 곳/작은 곳
+    const h = 30 + Math.pow(ridge, 1.8) * 345 * (0.5 + 0.8 * massif);
+    return h + (fbm(x * 0.02, z * 0.02, 3) - 0.5) * 16;
+  },
+  // 협곡: 대지(메사) + 구불구불한 깊은 협곡 + 지류 + 지층 계단
   canyon: (x, z) => {
-    let h = 80 + fbm(x * 0.006, z * 0.006, 3) * 14;
+    let h = 85 + fbm(x * 0.006, z * 0.006, 3) * 16;
     const warp = fbm(x * 0.003 + 7.3, z * 0.003 + 1.9, 3) * 4;
-    const c = Math.abs(Math.sin(x * 0.0055 + z * 0.002 + warp));
-    h -= 66 * (1 - smooth(0.0, 0.38, c)); // 협곡 깎기
-    return h * 0.6 + Math.round(h / 10) * 10 * 0.4; // 지층(계단) 느낌
+    const main = Math.abs(Math.sin(x * 0.0055 + z * 0.002 + warp));
+    h -= 72 * (1 - smooth(0.0, 0.34, main)); // 큰 협곡
+    const branch = Math.abs(Math.sin(x * 0.0021 - z * 0.0049 + warp * 1.7 + 2));
+    h -= 36 * (1 - smooth(0.0, 0.2, branch)); // 지류
+    return lerp(h, Math.round(h / 9) * 9, 0.5); // 지층(계단) 느낌
   },
 };
 
@@ -182,28 +234,73 @@ function heightAt(x, z) {
   return h;
 }
 
-// 지형 색상 (높이 + 지형 종류)
-function groundColor(THREE, h, type, x, z, out, tmp) {
-  const n = (hash2(Math.round(x / 10), Math.round(z / 10)) - 0.5) * 0.08;
-  if (h < -3)
-    out.setHex(0x3b6477); // 해저
-  else if (h < 5)
-    out.setHex(0xe6d8a2); // 모래/해안
-  else if (type === "mountain") {
-    out
-      .setHex(0x6b9a4d)
-      .lerp(tmp.setHex(0x8b8279), smooth(60, 130, h))
-      .lerp(tmp.setHex(0xf5f8fb), smooth(175, 240, h)); // 산의 정상은 눈이 덮이게
+// 지형 색상 (높이 + 지형 종류 + 경사)
+function groundColor(THREE, h, slope, type, x, z, out, tmp) {
+  const patch = fbm(x * 0.025 + 4.4, z * 0.025 + 9.9, 3); // 큰 얼룩 (0~1)
+  const fine = fbm(x * 0.09 + 1.7, z * 0.09 + 6.1, 2); // 잔 얼룩
+  const grain = (hash2(Math.round(x / 8), Math.round(z / 8)) - 0.5) * 0.06;
+  const cliff = smooth(0.7, 1.3, slope); // 급경사일수록 1
+
+  if (h < -2) {
+    // 해저: 얕은 곳은 청록, 깊은 곳은 짙은 파랑
+    out.setHex(0x5fb3b0).lerp(tmp.setHex(0x1f4e6b), smooth(-2, -30, h));
+  } else if (h < 4 + patch * 2.5) {
+    out.setHex(0xe6d8a2).lerp(tmp.setHex(0xd2bf86), fine); // 모래 해안
+    out.lerp(tmp.setHex(0xa8935c), (1 - smooth(-0.5, 1.8, h)) * 0.7); // 물가는 젖은 모래
+  } else if (type === "mountain") {
+    out.setHex(0x6b9a4d).lerp(tmp.setHex(0x55803f), patch); // 산기슭 초원
+    out.lerp(tmp.setHex(0x8b8279), smooth(55, 130, h + (patch - 0.5) * 40)); // 바위
+    out.lerp(tmp.setHex(0x6f675f), cliff * 0.7); // 절벽은 더 어두운 바위
+    const snow = smooth(150, 215, h + (patch - 0.5) * 50) * (1 - cliff * 0.75);
+    out.lerp(tmp.setHex(0xf5f8fb), snow); // 높은 곳은 눈 (가파른 면에는 쌓이지 않음)
   } else if (type === "forest") {
-    out.setHex(0x4e8a3a).lerp(tmp.setHex(0x7a6a4a), smooth(70, 130, h));
+    out.setHex(0x4e8a3a).lerp(tmp.setHex(0x3f7a35), patch);
+    out.lerp(tmp.setHex(0x7fae52), smooth(0.6, 0.8, fine) * 0.6); // 숲속 빈터
+    out.lerp(tmp.setHex(0x7a6a4a), smooth(70, 130, h));
+    out.lerp(tmp.setHex(0x6f675f), cliff * 0.5);
   } else if (type === "canyon") {
-    const t = 0.5 + 0.5 * Math.sin(h * 0.45); // 붉은 지층 줄무늬
+    const t = 0.5 + 0.5 * Math.sin(h * 0.45 + patch * 2); // 붉은 지층 줄무늬
     out.setHex(0xc8683c).lerp(tmp.setHex(0xe09a62), t);
     if (h > 78) out.lerp(tmp.setHex(0xcfa56a), 0.5);
+    out.lerp(tmp.setHex(0x8e3f25), cliff * 0.6); // 협곡 벽은 더 어둡게
+  } else if (type === "sea") {
+    out.setHex(0x7cae58).lerp(tmp.setHex(0x4e8a3a), smooth(10, 35, h)); // 섬
   } else {
-    out.setHex(0x8fbf5b).lerp(tmp.setHex(0x6fa04a), fbm(x * 0.01, z * 0.01, 2));
+    out.setHex(0x8fbf5b).lerp(tmp.setHex(0x6fa04a), patch);
+    out.lerp(tmp.setHex(0xb5b46a), smooth(0.62, 0.8, fine) * 0.5); // 마른 풀밭
+    out.lerp(tmp.setHex(0x8b8279), cliff * 0.4);
   }
-  out.offsetHSL(0, 0, n);
+  out.offsetHSL(0, 0, grain);
+}
+
+// 지면 질감(색은 정점 색을 따르되 질감만 더해 준다): 밝은 회색, 이음새 x, 얼룩 무늬
+function createDetailTexture(THREE) {
+  const size = 256;
+  const data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let v = 0,
+        amp = 0.5,
+        total = 0;
+      for (const period of [8, 16, 32, 64]) {
+        v += amp * tileNoise((x / size) * period, (y / size) * period, period);
+        total += amp;
+        amp *= 0.55;
+      }
+      const g = Math.round(205 + (v / total) * 50);
+      data.set([g, g, g, 255], (y * size + x) * 4);
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 4;
+  tex.repeat.set(DETAIL_TEXTURE_REPEAT, DETAIL_TEXTURE_REPEAT);
+  tex.needsUpdate = true;
+  return tex;
 }
 
 function mulberry32(a) {
@@ -323,42 +420,68 @@ export function createEnvironment(THREE, scene) {
   root.add(sun.target);
 
   // 3. 지형
-  const SEG = 200; // 200 x 200 칸, 정점은 10unit 간격
+  const SEG = TERRAIN_SEGMENTS; // SEG x SEG 칸
+  const spacing = MAP_SIZE / SEG; // 정점 간격
   const terrainGeo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, SEG, SEG);
   terrainGeo.rotateX(-Math.PI / 2); // 눕혀서 바닥으로
   const pos = terrainGeo.attributes.position;
   const baseColors = new Float32Array(pos.count * 3);
   const c1 = new THREE.Color();
 
+  // 1) 모든 정점의 높이를 먼저 정한다
+  const heights = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    heights[i] = heightAt(pos.getX(i), pos.getZ(i));
+    pos.setY(i, heights[i]);
+  }
+
+  // 2) 높이와 경사(이웃 정점과의 높이 차)로 색을 정한다
+  const row = SEG + 1;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i),
       z = pos.getZ(i);
-    const h = heightAt(x, z);
-    pos.setY(i, h); // 높이 적용
+    const h = heights[i];
+    const ix = i % row,
+      iy = Math.floor(i / row);
+    const left = heights[iy * row + Math.max(0, ix - 1)];
+    const right = heights[iy * row + Math.min(SEG, ix + 1)];
+    const up = heights[Math.max(0, iy - 1) * row + ix];
+    const down = heights[Math.min(SEG, iy + 1) * row + ix];
+    const slope = Math.hypot(
+      (right - left) / (2 * spacing),
+      (down - up) / (2 * spacing),
+    );
 
-    // 색을 정할 때 쓸 대표 지형 (영향이 가장 큰 구역)
-    let best = 0,
-      bw = -1;
-    for (const [zi, w] of cornerWeights(x, z, 0.5))
-      if (w > bw) {
-        bw = w;
-        best = zi;
-      }
-    groundColor(THREE, h, ZONE_TYPES[best], x, z, c1, tmpColor);
-    baseColors.set([c1.r, c1.g, c1.b], i * 3);
+    // 구역 경계에서는 이웃 지형의 색과 부드럽게 섞는다
+    let r = 0,
+      g = 0,
+      b = 0,
+      wsum = 0;
+    for (const [zi, w] of cornerWeights(x, z, 0.5)) {
+      if (w < 0.08) continue;
+      groundColor(THREE, h, slope, ZONE_TYPES[zi], x, z, c1, tmpColor);
+      r += c1.r * w;
+      g += c1.g * w;
+      b += c1.b * w;
+      wsum += w;
+    }
+    baseColors.set([r / wsum, g / wsum, b / wsum], i * 3);
   }
   terrainGeo.setAttribute("color", new THREE.BufferAttribute(baseColors, 3));
   terrainGeo.computeVertexNormals(); // 높이가 바뀌었으니 음영 재계산
 
+  const detailTex = createDetailTexture(THREE);
   const terrain = new THREE.Mesh(
     terrainGeo,
     new THREE.MeshStandardMaterial({
       vertexColors: true,
-      flatShading: true,
+      map: detailTex, // 지면 질감
+      flatShading: TERRAIN_FLAT_SHADING,
       roughness: 0.95,
       metalness: 0,
     }),
   );
+
   terrain.receiveShadow = true;
   terrain.castShadow = true;
   root.add(terrain);
@@ -673,6 +796,7 @@ export function createEnvironment(THREE, scene) {
         );
     });
     cloudTextures.forEach((t) => t.dispose()); // 구름 이미지 해제
+    detailTex.dispose(); // 지면 질감 해제
     scene.remove(root);
   }
 
