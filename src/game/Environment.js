@@ -12,7 +12,7 @@
 // 맵 크기
 export const MAP_SIZE = 2000;
 export const ZONE_GRID = 4;
-export const ZONE_SIZE = MAP_SIZE / ZONE_GRID;
+export const ZONE_SIZE = MAP_SIZE / ZONE_GRID; // 500
 const HALF = MAP_SIZE / 2;
 const SEA_LEVEL = 0;
 
@@ -29,6 +29,15 @@ export const ZONE_LAYOUT = [
 ];
 
 const ZONE_TYPES = ZONE_LAYOUT.flat();
+
+// 지형 이름 설정
+const ZONE_NAMES = {
+  mountain: "산",
+  forest: "숲",
+  sea: "바다",
+  canyon: "협곡",
+  plain: "평원",
+};
 
 // 수학/노이즈 유틸
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -89,6 +98,8 @@ function ridged(x, z, oct = 5) {
 
 // 링 크기 -> RingSystem에 radius로 넘어감
 export const RING_RADIUS = 22;
+// 지역 발견 반지름 -> ExplorationSystem에 radius로 반영
+export const REGION_RADIUS = 300;
 
 export const RING_PATH = [
   { x: -60, z: -170, clearance: 50 },
@@ -135,6 +146,14 @@ function cornerWeights(x, z, band) {
     [j1 * N + i0, (1 - fx) * fz],
     [j1 * N + i1, fx * fz],
   ];
+}
+
+// 좌표가 속한 구역 index (맵 밖이면 -1)
+function zoneIndexAt(x, z) {
+  const c = Math.floor((x + HALF) / ZONE_SIZE);
+  const r = Math.floor((z + HALF) / ZONE_SIZE);
+  if (c < 0 || r < 0 || c >= ZONE_GRID || r >= ZONE_GRID) return -1;
+  return r * ZONE_GRID + c;
 }
 
 const TYPE_HEIGHT = {
@@ -216,6 +235,28 @@ export function createEnvironment(THREE, scene) {
   let elapsed = 0; // 게임이 시작된 뒤 흐른 시간(초). 링 깜빡임 등에 사용
 
   const tmpColor = new THREE.Color(); // 색을 섞을 때 쓰는 임시 색 (groundColor에 전달)
+
+  // 구역 상태 (탐험 연출용): p = 현재 밝기, target = 목표 밝기 (0 = 회색조, 1 = 원래색)
+  const zones = ZONE_TYPES.map((type, index) => {
+    const col = index % ZONE_GRID,
+      row = Math.floor(index / ZONE_GRID);
+    const minX = -HALF + row * ZONE_SIZE,
+      minZ = -HALF + row * ZONE_SIZE;
+    return {
+      id: index + 1, // 1부터 시작
+      index, // 0부터 시작
+      col,
+      row,
+      type,
+      name: ZONE_NAMES[type],
+      min: { x: minX, z: minZ },
+      max: { x: minX + ZONE_SIZE, z: minZ + ZONE_SIZE },
+      center: { x: minX + ZONE_SIZE / 2, z: minZ + ZONE_SIZE / 2 },
+      p: 0,
+      target: 0,
+      flash: 0, // 공개 순간 반짝임 (1 -> 0)
+    };
+  });
 
   // 1. 하늘 + 안개
   const SUN_OFFSET = new THREE.Vector3(420, 640, 260); // 비행기 기준 태양 위치
@@ -558,6 +599,19 @@ export function createEnvironment(THREE, scene) {
     }));
   }
 
+  // ExplorationSystem에 넘길 지역 데이터: { id, name, type, position, radius, ignoreY }
+  // ignoreY: 높이(y)는 무시하고 수평(x, z) 거리로만 판정 (ExplorationSystem 1줄 수정과 함께 사용)
+  function getRegionData() {
+    return zones.map((z) => ({
+      id: z.id,
+      name: z.name,
+      type: z.type,
+      position: { x: z.center.x, y: 0, z: z.center.z },
+      radius: REGION_RADIUS,
+      ignoreY: true,
+    }));
+  }
+
   // 매 프레임 갱신 조건
   function update(delta, planePosition) {
     elapsed += delta;
@@ -635,6 +689,12 @@ export function createEnvironment(THREE, scene) {
     setActiveRing,
     markRingPassed,
     getRingData, // 링
+    zones,
+    getRegionData,
+    getZoneAt: (x, z) => {
+      const i = zoneIndexAt(x, z);
+      return i < 0 ? -1 : i + 1;
+    },
     start: { position: startPos, direction: startDir },
   };
 }
