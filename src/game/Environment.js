@@ -308,8 +308,8 @@ function groundColor(THREE, h, slope, type, x, z, out, tmp) {
   const cliff = smooth(0.7, 1.3, slope); // 급경사일수록 1
 
   if (h < -2) {
-    // 해저: 얕은 곳은 청록, 깊은 곳은 짙은 파랑
-    out.setHex(0x5fb3b0).lerp(tmp.setHex(0x1f4e6b), smooth(-2, -30, h));
+    // 해저: 해안 모래색에서 시작해 깊어질수록 짙은 파랑으로 서서히 어두워진다
+    out.setHex(0xbba871).lerp(tmp.setHex(0x1f4e6b), smooth(-2, -20, h));
   } else if (h < 4 + patch * 2.5) {
     out.setHex(0xe6d8a2).lerp(tmp.setHex(0xd2bf86), fine); // 모래 해안
     out.lerp(tmp.setHex(0xa8935c), (1 - smooth(-0.5, 1.8, h)) * 0.7); // 물가는 젖은 모래
@@ -789,7 +789,8 @@ export function createEnvironment(THREE, scene, options = {}) {
       float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
 
       // 물 색: 얕은 곳은 청록, 깊은 곳은 짙은 파랑, 비스듬히 볼수록 하늘색 반사
-      vec3 col = mix(uShallow, uDeep, smoothstep(0.0, 28.0, depth));
+      // 깊어질수록 지수 곡선으로 짙어진다
+      vec3 col = mix(uShallow, uDeep, 1.0 - exp(-max(depth, 0.0) / 18.0));
       col = mix(col, uSky, fres * 0.55);
       vec3 R = reflect(-uSunDir, N);
       col += vec3(1.0, 0.95, 0.8) * pow(max(dot(R, V), 0.0), 120.0) * 0.9;
@@ -808,7 +809,7 @@ export function createEnvironment(THREE, scene, options = {}) {
       float foam = clamp(shoreFoam * (0.55 + 0.45 * foamTex) + crestLine * 0.55 * foamTex, 0.0, 1.0);
       col = mix(col, vec3(1.0), foam);
 
-      float alpha = mix(0.32, 0.96, smoothstep(0.0, 14.0, depth));
+      float alpha = mix(0.58, 0.96, smoothstep(0.0, 14.0, depth));
       alpha = max(alpha, foam * 0.95);
       alpha = mix(alpha, 1.0, uOpaque);
 
@@ -828,7 +829,7 @@ export function createEnvironment(THREE, scene, options = {}) {
       uWaveAmp: { value: inside ? 1.0 : 0.0 },
       uHeightTex: { value: heightTex },
       uHeightInfo: { value: new THREE.Vector3(HALF, spacing, row) },
-      uShallow: { value: new THREE.Color(0x4fd0c8) },
+      uShallow: { value: new THREE.Color(0x45aee8) },
       uDeep: { value: new THREE.Color(0x17608f) },
       uSky: { value: horizonColor },
       uSunDir: { value: sunDir },
