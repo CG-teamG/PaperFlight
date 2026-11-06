@@ -706,7 +706,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     uniform float uTime;
     uniform float uWaveAmp;
     varying vec3 vWorld;
-    varying vec3 vNormalW;
+    // varying vec3 vNormalW;
     ${WATER_COMMON}
     #include <fog_pars_vertex>
 
@@ -715,11 +715,12 @@ export function createEnvironment(THREE, scene, options = {}) {
            + cos(p.y * 0.05 + t * 1.0) * 0.5
            + sin((p.x + p.y) * 0.09 + t * 1.9) * 0.25;
     }
-    vec2 waveGrad(vec2 p, float t) {
-      float a = cos((p.x + p.y) * 0.09 + t * 1.9) * 0.25 * 0.09;
-      return vec2(cos(p.x * 0.045 + t * 1.3) * 0.6 * 0.045 + a,
-                  -sin(p.y * 0.05 + t * 1.0) * 0.5 * 0.05 + a);
-    }
+           
+    // vec2 waveGrad(vec2 p, float t) {
+    //   float a = cos((p.x + p.y) * 0.09 + t * 1.9) * 0.25 * 0.09;
+    //   return vec2(cos(p.x * 0.045 + t * 1.3) * 0.6 * 0.045 + a,
+    //               -sin(p.y * 0.05 + t * 1.0) * 0.5 * 0.05 + a);
+    // }
 
     void main() {
       vec4 wp = modelMatrix * vec4(position, 1.0);
@@ -729,8 +730,8 @@ export function createEnvironment(THREE, scene, options = {}) {
       float damp = uWaveAmp * (0.25 + 0.75 * smoothstep(0.0, 8.0, depth))
                  * (1.0 - smoothstep(uHeightInfo.x - 80.0, uHeightInfo.x, edge));
       wp.y += waveH(wp.xz, uTime) * damp;
-      vec2 g = waveGrad(wp.xz, uTime) * damp;
-      vNormalW = normalize(vec3(-g.x, 1.0, -g.y));
+      // vec2 g = waveGrad(wp.xz, uTime) * damp;
+      // vNormalW = normalize(vec3(-g.x, 1.0, -g.y));
       vWorld = wp.xyz;
       vec4 mvPosition = viewMatrix * wp;
       gl_Position = projectionMatrix * mvPosition;
@@ -748,7 +749,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     uniform float uSeaFlash;  // 바다 공개 효과
     uniform float uOpaque;
     varying vec3 vWorld;
-    varying vec3 vNormalW;
+    // varying vec3 vNormalW;
     ${WATER_COMMON}
     #include <fog_pars_fragment>
 
@@ -757,6 +758,14 @@ export function createEnvironment(THREE, scene, options = {}) {
       p += dot(p, p + 45.32);
       return fract(p.x * p.y);
     }
+
+    // 큰 파도의 기울기. 정점이 아니라 픽셀마다 계산해서 맵 안쪽과 바깥 바다가 똑같이 일렁이는 것처럼 보이게 한다.
+    vec2 waveGrad(vec2 p, float t) {
+      float a = cos((p.x + p.y) * 0.09 + t * 1.9) * 0.25 * 0.09;
+      return vec2(cos(p.x * 0.045 + t * 1.3) * 0.6 * 0.045 + a,
+                  -sin(p.y * 0.05 + t * 1.0) * 0.5 * 0.05 + a);
+    }
+
     float vnoise(vec2 p) {
       vec2 i = floor(p);
       vec2 f = fract(p);
@@ -784,7 +793,8 @@ export function createEnvironment(THREE, scene, options = {}) {
       float n3 = vnoise(xz * 0.23 - 3.1 + uTime * 0.11);
 
       // 잔물결
-      vec3 N = normalize(vNormalW + vec3((n2 - 0.5) * 0.3, 0.0, (n3 - 0.5) * 0.3));
+      vec2 g = waveGrad(xz, uTime) * (0.25 + 0.75 * smoothstep(0.0, 8.0, depth));
+      vec3 N = normalize(vec3(-g.x, 1.0, -g.y) + vec3((n2 - 0.5) * 0.3, 0.0, (n3 - 0.5) * 0.3));
       vec3 V = normalize(cameraPosition - vWorld);
       float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
 
@@ -812,6 +822,11 @@ export function createEnvironment(THREE, scene, options = {}) {
       float alpha = mix(0.58, 0.96, smoothstep(0.0, 14.0, depth));
       alpha = max(alpha, foam * 0.95);
       alpha = mix(alpha, 1.0, uOpaque);
+
+      // 맵 가장자리로 갈수록 불투명
+      // 맵 경계의 해저가 비쳐 보이지 않고 바깥 바다와 같은 색으로 이어지도록 수정
+      float edgeDist = max(abs(xz.x), abs(xz.y));
+      alpha = mix(alpha, 1.0, smoothstep(uHeightInfo.x - 120.0, uHeightInfo.x - 30.0, edgeDist));
 
       col = revealTint(col, uSeaReveal, uSeaFlash);
 
@@ -867,18 +882,21 @@ export function createEnvironment(THREE, scene, options = {}) {
   outerShape.lineTo(-OH, OH);
   outerShape.closePath();
   const hole = new THREE.Path();
-  hole.moveTo(-HALF, -HALF);
-  hole.lineTo(-HALF, HALF);
-  hole.lineTo(HALF, HALF);
-  hole.lineTo(HALF, -HALF);
+  const OUTER_OVERLAP = 30;
+  const HH = HALF - OUTER_OVERLAP;
+  hole.moveTo(-HH, -HH);
+  hole.lineTo(-HH, HH);
+  hole.lineTo(HH, HH);
+  hole.lineTo(HH, -HH);
   hole.closePath();
   outerShape.holes.push(hole);
   const outerSeaMesh = new THREE.Mesh(
     new THREE.ShapeGeometry(outerShape).rotateX(-Math.PI / 2),
     makeWaterMaterial({ inside: false }),
   );
-  outerSeaMesh.position.y = SEA_LEVEL - 0.3;
-  outerSeaMesh.renderOrder = -1;
+
+  outerSeaMesh.position.y = SEA_LEVEL; // 같은 높이
+  outerSeaMesh.renderOrder = -2; // 안쪽 수면(-1)보다 먼저 그림
   outerSeaMesh.frustumCulled = false;
   root.add(outerSeaMesh);
 
