@@ -691,6 +691,8 @@ export function createEnvironment(THREE, scene, options = {}) {
   heightTex.minFilter = heightTex.magFilter = THREE.LinearFilter;
   heightTex.needsUpdate = true;
 
+  const waterTime = { value: 0 };
+
   const WATER_COMMON = `
     uniform sampler2D uHeightTex;
     uniform vec3 uHeightInfo; // x: 맵 절반 크기, y: 정점 간격, z: 격자 칸 수 + 1
@@ -701,11 +703,34 @@ export function createEnvironment(THREE, scene, options = {}) {
   `;
 
   const waterVertex = `
+    uniform float uTime;
+    uniform float uWaveAmp;
     varying vec3 vWorld;
+    varying vec3 vNormalW;
+    ${WATER_COMMON}
     #include <fog_pars_vertex>
+
+    float waveH(vec2 p, float t) {
+      return sin(p.x * 0.045 + t * 1.3) * 0.6
+           + cos(p.y * 0.05 + t * 1.0) * 0.5
+           + sin((p.x + p.y) * 0.09 + t * 1.9) * 0.25;
+    }
+    vec2 waveGrad(vec2 p, float t) {
+      float a = cos((p.x + p.y) * 0.09 + t * 1.9) * 0.25 * 0.09;
+      return vec2(cos(p.x * 0.045 + t * 1.3) * 0.6 * 0.045 + a,
+                  -sin(p.y * 0.05 + t * 1.0) * 0.5 * 0.05 + a);
+    }
 
     void main() {
       vec4 wp = modelMatrix * vec4(position, 1.0);
+      float depth = -sampleH(wp.xz);
+      float edge = max(abs(wp.x), abs(wp.z));
+      // 얕은 곳과 맵 가장자리에서는 파도를 줄여 지형을 뚫지 않고 바깥 바다와 매끄럽게 이어지게 한다
+      float damp = uWaveAmp * (0.25 + 0.75 * smoothstep(0.0, 8.0, depth))
+                 * (1.0 - smoothstep(uHeightInfo.x - 80.0, uHeightInfo.x, edge));
+      wp.y += waveH(wp.xz, uTime) * damp;
+      vec2 g = waveGrad(wp.xz, uTime) * damp;
+      vNormalW = normalize(vec3(-g.x, 1.0, -g.y));
       vWorld = wp.xyz;
       vec4 mvPosition = viewMatrix * wp;
       gl_Position = projectionMatrix * mvPosition;
@@ -714,19 +739,78 @@ export function createEnvironment(THREE, scene, options = {}) {
   `;
 
   const waterFragment = `
+    uniform float uTime;
     uniform vec3 uShallow;
     uniform vec3 uDeep;
+    uniform vec3 uSky;
+    uniform vec3 uSunDir;
+    uniform float uSeaReveal; // 바다 탐험 상태 (0~1)
+    uniform float uSeaFlash;  // 바다 공개 효과
     varying vec3 vWorld;
+    varying vec3 vNormalW;
     ${WATER_COMMON}
     #include <fog_pars_fragment>
 
-    void main() {
-      float depth = -sampleH(vWorld.xz); // 수심 (0이면 해안선, 음수면 육지)
+    float hash21(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+    float vnoise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
 
-      // 물 색: 얕은 곳은 청록, 깊은 곳은 짙은 파랑
+    // 탐험 연출 색 변환 
+    vec3 revealTint(vec3 c, float rev, float flash) {
+      float g = dot(c, vec3(0.299, 0.587, 0.114));
+      g = mix(g, 0.18, (1.0 - rev) * 0.4);
+      float sat = rev * (1.0 + 0.18 * rev) + flash * 0.35;
+      float k = mix(0.3, 1.04, rev) * (1.0 + 0.3 * flash);
+      vec3 cold = mix(vec3(0.92, 0.97, 1.08), vec3(1.0), rev);
+      return max((vec3(g) + (c - vec3(g)) * sat) * cold * k, 0.0);
+    }
+
+    void main() {
+      vec2 xz = vWorld.xz;
+      float depth = -sampleH(xz); // 수심 (0이면 해안선, 음수면 육지)
+
+      float n  = vnoise(xz * 0.07 + uTime * 0.05);
+      float n2 = vnoise(xz * 0.25 + 7.3 - uTime * 0.09);
+      float n3 = vnoise(xz * 0.23 - 3.1 + uTime * 0.11);
+
+      // 잔물결
+      vec3 N = normalize(vNormalW + vec3((n2 - 0.5) * 0.3, 0.0, (n3 - 0.5) * 0.3));
+      vec3 V = normalize(cameraPosition - vWorld);
+      float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+
+      // 물 색: 얕은 곳은 청록, 깊은 곳은 짙은 파랑, 비스듬히 볼수록 하늘색 반사
       vec3 col = mix(uShallow, uDeep, smoothstep(0.0, 28.0, depth));
-      // 얕을수록 투명해서 바닥이 비쳐 보인다
+      col = mix(col, uSky, fres * 0.55);
+      vec3 R = reflect(-uSunDir, N);
+      col += vec3(1.0, 0.95, 0.8) * pow(max(dot(R, V), 0.0), 120.0) * 0.9;
+
+      // 해안 거품: 파도가 해안으로 밀려왔다 빠지며 거품 폭이 출렁인다
+      float d = depth + (n - 0.5) * 1.2; // 거품 가장자리를 들쭉날쭉하게
+      float swash = 0.5 + 0.5 * sin(depth * 0.55 + uTime * 1.15 + n * 2.5);
+      float reach = 1.0 + swash * 3.0;
+      float shoreFoam = 1.0 - smoothstep(reach * 0.35, reach, d);
+      // 해안으로 다가오는 파도선 (깊은 곳 -> 얕은 곳으로 이동)
+      float crest = sin(depth * 0.75 + uTime * 1.15 + n * 3.0);
+      float crestLine = smoothstep(0.82, 0.98, crest)
+                      * smoothstep(1.5, 3.0, depth)
+                      * (1.0 - smoothstep(3.0, 9.0, depth));
+      float foamTex = smoothstep(0.35, 0.65, vnoise(xz * 0.5 + uTime * 0.15));
+      float foam = clamp(shoreFoam * (0.55 + 0.45 * foamTex) + crestLine * 0.55 * foamTex, 0.0, 1.0);
+      col = mix(col, vec3(1.0), foam);
+
       float alpha = mix(0.32, 0.96, smoothstep(0.0, 14.0, depth));
+      alpha = max(alpha, foam * 0.95);
+
+      col = revealTint(col, uSeaReveal, uSeaFlash);
 
       gl_FragColor = vec4(col, alpha);
       #include <tonemapping_fragment>
@@ -738,11 +822,18 @@ export function createEnvironment(THREE, scene, options = {}) {
   function makeWaterMaterial() {
     const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog]); // 안개 값은 three가 자동으로 채움
     Object.assign(uniforms, {
+      uTime: waterTime,
+      uWaveAmp: { value: 1.0 },
       uHeightTex: { value: heightTex },
       uHeightInfo: { value: new THREE.Vector3(HALF, spacing, row) },
       uShallow: { value: new THREE.Color(0x4fd0c8) },
       uDeep: { value: new THREE.Color(0x17608f) },
+      uSky: { value: horizonColor },
+      uSunDir: { value: sunDir },
+      uSeaReveal: seaReveal,
+      uSeaFlash: seaFlash,
     });
+
     return new THREE.ShaderMaterial({
       uniforms,
       vertexShader: waterVertex,
@@ -1467,6 +1558,9 @@ export function createEnvironment(THREE, scene, options = {}) {
       syncSeaReveal();
       refreshTerrainColors();
     }
+
+    // 물결 (셰이더가 시간으로 계산)
+    waterTime.value = elapsed;
 
     // 구름 베일이 천천히 맴도는 모양
     for (const v of veils)
