@@ -620,10 +620,17 @@ export function createEnvironment(THREE, scene, options = {}) {
   terrainGeo.computeVertexNormals(); // 높이가 바뀌었으니 음영 재계산
 
   // 구역별 밝기(0~1)를 정점 색에 반영: 0 = 어두운 회색조(윤곽만 보임), 1 = 원래 색
+
+  // 물에 잠긴 정점일수록 1: 해저 색은 바다 탐험 상태를 따른다(구역 x)
+  const wet = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) wet[i] = smooth(0.8, -2.5, heights[i]);
+
   function refreshTerrainColors() {
     const arr = colorAttr.array;
     const rev = zones.map((z) => ease(z.p));
     const fl = zones.map((z) => z.flash * z.flash);
+    const seaRev = seaReveal.value,
+      seaFl = seaFlash.value;
     for (let i = 0; i < pos.count; i++) {
       let r = 0,
         f = 0;
@@ -633,6 +640,10 @@ export function createEnvironment(THREE, scene, options = {}) {
         r += w * rev[zi];
         f += w * fl[zi];
       }
+
+      r = lerp(r, seaRev, wet[i]);
+      f = lerp(f, seaFl, wet[i]);
+
       revealRGB(
         baseColors[i * 3],
         baseColors[i * 3 + 1],
