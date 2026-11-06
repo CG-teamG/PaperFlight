@@ -6,6 +6,7 @@
 // 1. 지형, 하늘, 구름, 조명을 만든다.
 // 2. 링의 외형을 구현한다.
 // 3. 그림자와 환경 효과를 추가한다.
+// 4. 바다: 수심 기반 물 셰이더 (해안 거품, 밀려오는 파도선)
 // 참고: 링 통과 판정은 RingSystem.js에서 담당한다.
 // ============================================================
 
@@ -673,6 +674,95 @@ export function createEnvironment(THREE, scene, options = {}) {
   terrain.receiveShadow = true;
   terrain.castShadow = true;
   root.add(terrain);
+
+  // 바다: 지형 높이를 텍스처로 만들어 물 셰이더가 "수심"을 인식하도록
+  //    얕을수록 청록 + 투명, 해안/섬 가장자리에는 밀려왔다 빠지는 흰 거품과 파도선이 생긴다.
+  //    (지형 메시의 정점 높이를 그대로 사용)
+  const heightData = new Uint16Array(row * row);
+  for (let i = 0; i < heightData.length; i++)
+    heightData[i] = THREE.DataUtils.toHalfFloat(heights[i]);
+  const heightTex = new THREE.DataTexture(
+    heightData,
+    row,
+    row,
+    THREE.RedFormat,
+    THREE.HalfFloatType,
+  );
+  heightTex.minFilter = heightTex.magFilter = THREE.LinearFilter;
+  heightTex.needsUpdate = true;
+
+  const WATER_COMMON = `
+    uniform sampler2D uHeightTex;
+    uniform vec3 uHeightInfo; // x: 맵 절반 크기, y: 정점 간격, z: 격자 칸 수 + 1
+    float sampleH(vec2 xz) {
+      vec2 uv = ((xz + uHeightInfo.x) / uHeightInfo.y + 0.5) / uHeightInfo.z;
+      return texture2D(uHeightTex, uv).r;
+    }
+  `;
+
+  const waterVertex = `
+    varying vec3 vWorld;
+    #include <fog_pars_vertex>
+
+    void main() {
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vWorld = wp.xyz;
+      vec4 mvPosition = viewMatrix * wp;
+      gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+    }
+  `;
+
+  const waterFragment = `
+    uniform vec3 uShallow;
+    uniform vec3 uDeep;
+    varying vec3 vWorld;
+    ${WATER_COMMON}
+    #include <fog_pars_fragment>
+
+    void main() {
+      float depth = -sampleH(vWorld.xz); // 수심 (0이면 해안선, 음수면 육지)
+
+      // 물 색: 얕은 곳은 청록, 깊은 곳은 짙은 파랑
+      vec3 col = mix(uShallow, uDeep, smoothstep(0.0, 28.0, depth));
+      // 얕을수록 투명해서 바닥이 비쳐 보인다
+      float alpha = mix(0.32, 0.96, smoothstep(0.0, 14.0, depth));
+
+      gl_FragColor = vec4(col, alpha);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      #include <fog_fragment>
+    }
+  `;
+
+  function makeWaterMaterial() {
+    const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog]); // 안개 값은 three가 자동으로 채움
+    Object.assign(uniforms, {
+      uHeightTex: { value: heightTex },
+      uHeightInfo: { value: new THREE.Vector3(HALF, spacing, row) },
+      uShallow: { value: new THREE.Color(0x4fd0c8) },
+      uDeep: { value: new THREE.Color(0x17608f) },
+    });
+    return new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader: waterVertex,
+      fragmentShader: waterFragment,
+      transparent: true,
+      depthWrite: false,
+      fog: true,
+    });
+  }
+
+  // 맵 안쪽 수면: 맵 전체를 덮는 한 장 (구역 사이 이음새 없음)
+  const waterMat = makeWaterMaterial();
+  const waterMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, 250, 250).rotateX(-Math.PI / 2),
+    waterMat,
+  );
+  waterMesh.position.y = SEA_LEVEL;
+  waterMesh.renderOrder = -1; // 수면 위의 구름/베일/링보다 먼저 그린다
+  waterMesh.frustumCulled = false;
+  root.add(waterMesh);
 
   // 나무
   // 구역마다 InstancedMesh로 한꺼번에 그린다
@@ -1444,6 +1534,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     });
     cloudTextures.forEach((t) => t.dispose()); // 구름 이미지 해제
     detailTex.dispose(); // 지면 질감 해제
+    heightTex.dispose(); // 물 셰이더용 높이 텍스처 해제
     scene.remove(root);
   }
   reset(); // 초기 상태: 전체 회색조, 링 랜덤 배치, 첫 링 강조
