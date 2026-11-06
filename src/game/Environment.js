@@ -746,6 +746,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     uniform vec3 uSunDir;
     uniform float uSeaReveal; // 바다 탐험 상태 (0~1)
     uniform float uSeaFlash;  // 바다 공개 효과
+    uniform float uOpaque;
     varying vec3 vWorld;
     varying vec3 vNormalW;
     ${WATER_COMMON}
@@ -809,6 +810,7 @@ export function createEnvironment(THREE, scene, options = {}) {
 
       float alpha = mix(0.32, 0.96, smoothstep(0.0, 14.0, depth));
       alpha = max(alpha, foam * 0.95);
+      alpha = mix(alpha, 1.0, uOpaque);
 
       col = revealTint(col, uSeaReveal, uSeaFlash);
 
@@ -819,11 +821,11 @@ export function createEnvironment(THREE, scene, options = {}) {
     }
   `;
 
-  function makeWaterMaterial() {
-    const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog]); // 안개 값은 three가 자동으로 채움
+  function makeWaterMaterial({ inside }) {
+    const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog]);
     Object.assign(uniforms, {
       uTime: waterTime,
-      uWaveAmp: { value: 1.0 },
+      uWaveAmp: { value: inside ? 1.0 : 0.0 },
       uHeightTex: { value: heightTex },
       uHeightInfo: { value: new THREE.Vector3(HALF, spacing, row) },
       uShallow: { value: new THREE.Color(0x4fd0c8) },
@@ -832,8 +834,8 @@ export function createEnvironment(THREE, scene, options = {}) {
       uSunDir: { value: sunDir },
       uSeaReveal: seaReveal,
       uSeaFlash: seaFlash,
+      uOpaque: { value: inside ? 0 : 1 },
     });
-
     return new THREE.ShaderMaterial({
       uniforms,
       vertexShader: waterVertex,
@@ -845,7 +847,7 @@ export function createEnvironment(THREE, scene, options = {}) {
   }
 
   // 맵 안쪽 수면: 맵 전체를 덮는 한 장 (구역 사이 이음새 없음)
-  const waterMat = makeWaterMaterial();
+  const waterMat = makeWaterMaterial({ inside: true }); // 인자 추가
   const waterMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, 250, 250).rotateX(-Math.PI / 2),
     waterMat,
@@ -854,6 +856,30 @@ export function createEnvironment(THREE, scene, options = {}) {
   waterMesh.renderOrder = -1; // 수면 위의 구름/베일/링보다 먼저 그린다
   waterMesh.frustumCulled = false;
   root.add(waterMesh);
+
+  // 맵 바깥: 바다로 계속 이어진다 (맵 영역은 뚫려 있어 해저가 가려지지 않음)
+  const outerShape = new THREE.Shape();
+  const OH = 7000;
+  outerShape.moveTo(-OH, -OH);
+  outerShape.lineTo(OH, -OH);
+  outerShape.lineTo(OH, OH);
+  outerShape.lineTo(-OH, OH);
+  outerShape.closePath();
+  const hole = new THREE.Path();
+  hole.moveTo(-HALF, -HALF);
+  hole.lineTo(-HALF, HALF);
+  hole.lineTo(HALF, HALF);
+  hole.lineTo(HALF, -HALF);
+  hole.closePath();
+  outerShape.holes.push(hole);
+  const outerSeaMesh = new THREE.Mesh(
+    new THREE.ShapeGeometry(outerShape).rotateX(-Math.PI / 2),
+    makeWaterMaterial({ inside: false }),
+  );
+  outerSeaMesh.position.y = SEA_LEVEL - 0.3;
+  outerSeaMesh.renderOrder = -1;
+  outerSeaMesh.frustumCulled = false;
+  root.add(outerSeaMesh);
 
   // 나무
   // 구역마다 InstancedMesh로 한꺼번에 그린다
