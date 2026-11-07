@@ -11,6 +11,10 @@ export default function FlightTest() {
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0xdbeafe)
 
+    const grid = new THREE.GridHelper(200, 100)
+    grid.position.y = -2
+    scene.add(grid)
+
     const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100)
 
     const renderer = new THREE.WebGLRenderer()
@@ -50,6 +54,7 @@ export default function FlightTest() {
       renderer.setAnimationLoop(null)
       window.removeEventListener('resize', resize)
       controller.dispose()
+      grid.dispose()
       airplane.geometry.dispose()
       airplane.material.dispose()
       renderer.dispose()
