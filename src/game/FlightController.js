@@ -1,7 +1,7 @@
 export class FlightController {
   constructor(airplane) {
     this.airplane = airplane
-    this.speed = 1
+    this.speed = 5
     this.turnSpeed = 1
     this.keys = {}
 
@@ -21,12 +21,30 @@ export class FlightController {
   }
 
   update(deltaTime) {
-    // 좌우 키를 누르는 동안 방향 회전
+    const angle = this.turnSpeed * deltaTime
+
+    // 요: 기수를 좌우로 회전
     if (this.keys.ArrowLeft) {
-      this.airplane.rotation.y += this.turnSpeed * deltaTime
+      this.airplane.rotateY(angle)
     }
     if (this.keys.ArrowRight) {
-      this.airplane.rotation.y -= this.turnSpeed * deltaTime
+      this.airplane.rotateY(-angle)
+    }
+
+    // 피치: 기수를 위아래로 회전
+    if (this.keys.ArrowUp) {
+      this.airplane.rotateX(-angle)
+    }
+    if (this.keys.ArrowDown) {
+      this.airplane.rotateX(angle)
+    }
+
+    // 롤: 날개를 좌우로 기울임
+    if (this.keys.KeyA) {
+      this.airplane.rotateZ(-angle)
+    }
+    if (this.keys.KeyD) {
+      this.airplane.rotateZ(angle)
     }
 
     // 비행기가 바라보는 방향으로 전진

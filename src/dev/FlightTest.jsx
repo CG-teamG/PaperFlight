@@ -41,10 +41,11 @@ export default function FlightTest() {
       previousTime = time
       controller.update(deltaTime)
 
-      // 비행기 기준 뒤쪽·위쪽에서 앞쪽을 바라봄
-      const cameraPosition = airplane.localToWorld(new THREE.Vector3(0, 4, -10))
-      camera.position.copy(cameraPosition)
-      const cameraTarget = airplane.localToWorld(new THREE.Vector3(0, 0, 4))
+      // 전방을 따라가되 카메라는 롤에 기울어지지 않음
+      const forward = airplane.getWorldDirection(new THREE.Vector3())
+      camera.position.copy(airplane.position).addScaledVector(forward, -10)
+      camera.position.y += 4
+      const cameraTarget = airplane.position.clone().addScaledVector(forward, 4)
       camera.lookAt(cameraTarget)
 
       renderer.render(scene, camera)
