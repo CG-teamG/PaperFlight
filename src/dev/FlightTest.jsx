@@ -12,8 +12,6 @@ export default function FlightTest() {
     scene.background = new THREE.Color(0xdbeafe)
 
     const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100)
-    camera.position.set(0, 6, -8)
-    camera.lookAt(0, 0, 0)
 
     const renderer = new THREE.WebGLRenderer()
     container.appendChild(renderer.domElement)
@@ -38,6 +36,13 @@ export default function FlightTest() {
       const deltaTime = (time - previousTime) / 1000
       previousTime = time
       controller.update(deltaTime)
+
+      // 비행기 기준 뒤쪽·위쪽에서 앞쪽을 바라봄
+      const cameraPosition = airplane.localToWorld(new THREE.Vector3(0, 4, -10))
+      camera.position.copy(cameraPosition)
+      const cameraTarget = airplane.localToWorld(new THREE.Vector3(0, 0, 4))
+      camera.lookAt(cameraTarget)
+
       renderer.render(scene, camera)
     })
 
