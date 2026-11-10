@@ -1,0 +1,11 @@
+body {
+  margin: 0;
+}
+
+.flight-test {
+  height: 100vh;
+}
+
+.flight-test canvas {
+  display: block;
+}
