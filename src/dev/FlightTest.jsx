@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { createTestAirplane } from './createTestAirplane.js'
 import { FlightController } from '../game/FlightController.js'
+import { updateFollowCamera } from '../game/FollowCamera.js'
 
 export default function FlightTest() {
   const containerRef = useRef(null)
@@ -40,14 +41,7 @@ export default function FlightTest() {
       const deltaTime = (time - previousTime) / 1000
       previousTime = time
       controller.update(deltaTime)
-
-      // 전방을 따라가되 카메라는 롤에 기울어지지 않음
-      const forward = airplane.getWorldDirection(new THREE.Vector3())
-      camera.position.copy(airplane.position).addScaledVector(forward, -10)
-      camera.position.y += 4
-      const cameraTarget = airplane.position.clone().addScaledVector(forward, 4)
-      camera.lookAt(cameraTarget)
-
+      updateFollowCamera(airplane, camera)
       renderer.render(scene, camera)
     })
 
