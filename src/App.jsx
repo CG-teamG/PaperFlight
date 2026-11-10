@@ -17,7 +17,10 @@
  * ============================================================
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { EMPTY_FLIGHT_PROGRESS } from './game/FlightProgress.js'
+import { createGameScene } from './game/GameScene.js'
 import './App.css'
 
 // 초 단위 시간을 00:00 형식으로 변환
@@ -85,16 +88,12 @@ function StartScreen({ onStart }) {
 }
 
 // 게임 플레이 화면
-function PlayingScreen({ time, onPause, onFinish, isPaused = false }) {
-  // UI 확인용 임시 데이터
-  const score = 300
-  const passedRings = 3
-  const exploration = 42
-  const discovered = 7
-  const totalRegions = 16
+function PlayingScreen({ time, progress, sceneContainer, onPause, onFinish, isPaused }) {
+  const { score, passedRings, totalRings, exploration, completedTerrains, totalTerrains } = progress
 
   return (
     <main className="game-screen">
+      <div className="flight-scene" ref={sceneContainer} />
       {/* 상단 UI */}
       <header className="game-header">
         <Logo />
@@ -126,8 +125,8 @@ function PlayingScreen({ time, onPause, onFinish, isPaused = false }) {
         </div>
 
         <div className="panel-bottom">
-          <span>발견한 지역</span>
-          <strong>{discovered} / {totalRegions}</strong>
+          <span>탐험 완료 지형</span>
+          <strong>{completedTerrains} / {totalTerrains}</strong>
         </div>
 
         <div className="panel-divider" />
@@ -151,7 +150,7 @@ function PlayingScreen({ time, onPause, onFinish, isPaused = false }) {
 
         <div className="stat-row">
           <span>통과한 링</span>
-          <strong>{passedRings} <small>/ 14</small></strong>
+          <strong>{passedRings} <small>/ {totalRings}</small></strong>
         </div>
 
         <div className="stat-row">
@@ -171,20 +170,25 @@ function PlayingScreen({ time, onPause, onFinish, isPaused = false }) {
       <footer className="game-footer">
         <div className="control-guide">
           <div className="control-item">
-            <span className="key">W</span>
+            <span className="key">↑</span>
             <span>상승</span>
           </div>
           <div className="control-item">
-            <span className="key">S</span>
+            <span className="key">↓</span>
             <span>하강</span>
           </div>
           <div className="control-item">
-            <span className="key">A</span>
+            <span className="key">←</span>
             <span>좌회전</span>
           </div>
           <div className="control-item">
-            <span className="key">D</span>
+            <span className="key">→</span>
             <span>우회전</span>
+          </div>
+          <div className="control-item">
+            <span className="key">A</span>
+            <span className="key">D</span>
+            <span>날개 기울이기</span>
           </div>
         </div>
 
@@ -224,10 +228,8 @@ function PauseScreen({ onResume, onRestart, onHome }) {
 }
 
 // 결과 화면
-function ResultScreen({ time, onRestart, onHome }) {
-  const score = 300
-  const passedRings = 3
-  const exploration = 42
+function ResultScreen({ time, progress, onRestart, onHome }) {
+  const { score, passedRings, exploration } = progress
 
   return (
     <main className="result-screen">
@@ -289,6 +291,26 @@ function ResultScreen({ time, onRestart, onHome }) {
 function App() {
   const [gameState, setGameState] = useState('start')
   const [time, setTime] = useState(0)
+  const [progress, setProgress] = useState(EMPTY_FLIGHT_PROGRESS)
+  const sceneContainer = useRef(null)
+  const scene = useRef(null)
+  const isPaused = gameState === 'paused'
+  const inFlight = gameState === 'playing' || isPaused
+
+  useEffect(() => {
+    if (!inFlight) return
+
+    const gameScene = createGameScene(THREE, sceneContainer.current, setProgress)
+    scene.current = gameScene
+    return () => {
+      scene.current = null
+      gameScene.dispose()
+    }
+  }, [inFlight])
+
+  useEffect(() => {
+    scene.current?.setPaused(isPaused)
+  }, [isPaused])
 
   // 게임이 진행 중일 때만 시간 증가
   useEffect(() => {
@@ -304,13 +326,14 @@ function App() {
   // 게임 시작
   const startGame = () => {
     setTime(0)
+    setProgress(EMPTY_FLIGHT_PROGRESS)
     setGameState('playing')
   }
 
   // 게임 재시작
   const restartGame = () => {
-    setTime(0)
-    setGameState('playing')
+    startGame()
+    scene.current?.reset()
   }
 
   // 메인 화면으로 이동
@@ -325,34 +348,29 @@ function App() {
         <StartScreen onStart={startGame} />
       )}
 
-      {gameState === 'playing' && (
+      {inFlight && (
         <PlayingScreen
           time={time}
+          progress={progress}
+          sceneContainer={sceneContainer}
+          isPaused={isPaused}
           onPause={() => setGameState('paused')}
           onFinish={() => setGameState('result')}
         />
       )}
 
-      {gameState === 'paused' && (
-        <>
-          <PlayingScreen
-            time={time}
-            onPause={() => {}}
-            onFinish={() => setGameState('result')}
-            isPaused={true}
-          />
-
-          <PauseScreen
-            onResume={() => setGameState('playing')}
-            onRestart={restartGame}
-            onHome={goHome}
-          />
-        </>
+      {isPaused && (
+        <PauseScreen
+          onResume={() => setGameState('playing')}
+          onRestart={restartGame}
+          onHome={goHome}
+        />
       )}
 
       {gameState === 'result' && (
         <ResultScreen
           time={time}
+          progress={progress}
           onRestart={restartGame}
           onHome={goHome}
         />

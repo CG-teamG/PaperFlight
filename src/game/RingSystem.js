@@ -44,8 +44,9 @@ export class RingSystem {
     /**
      * 비행기의 현재 위치를 확인하여
      * 이번 업데이트에서 새롭게 통과한 링 개수를 반환한다.
+     * onPassed에는 이번에 통과한 링의 ID를 전달한다.
      */
-    update(airplanePosition) {
+    update(airplanePosition, onPassed) {
         if (!airplanePosition) {
             return 0;
         }
@@ -76,6 +77,7 @@ export class RingSystem {
                 this.passedRings.add(ringId);
                 this.passedCount++;
                 newlyPassed++;
+                onPassed?.(ringId);
             }
         }
 

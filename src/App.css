@@ -246,6 +246,15 @@ button:focus-visible {
   background: #263d4c;
 }
 
+.flight-scene {
+  position: absolute;
+  inset: 0;
+}
+
+.flight-scene canvas {
+  display: block;
+}
+
 .game-header {
   padding-top: 25px;
 }
