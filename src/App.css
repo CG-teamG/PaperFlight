@@ -243,7 +243,9 @@ button:focus-visible {
 /* 게임 플레이 화면 */
 
 .game-screen {
+  --hud-edge: clamp(14px, 3vw, 46px);
   background: #263d4c;
+  line-height: 1.35;
 }
 
 .flight-scene {
@@ -256,7 +258,8 @@ button:focus-visible {
 }
 
 .game-header {
-  padding-top: 25px;
+  padding: 19px var(--hud-edge) 24px;
+  background: linear-gradient(rgba(8, 24, 36, 0.86), rgba(8, 24, 36, 0));
 }
 
 .flight-status {
@@ -314,33 +317,34 @@ button:focus-visible {
 .hud-panel {
   position: absolute;
   z-index: 9;
-  top: 125px;
-  width: 225px;
-  padding: 21px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
+  top: 87px;
+  width: 224px;
+  padding: 15px;
+  border: 1px solid rgba(185, 222, 239, 0.24);
+  border-radius: 12px;
   color: #ffffff;
-  background: rgba(13, 30, 42, 0.72);
+  background: rgba(13, 30, 42, 0.88);
+  box-shadow: 0 5px 18px rgba(6, 20, 31, 0.18);
 }
 
 .exploration-panel {
-  left: 5.5%;
+  left: var(--hud-edge);
 }
 
 .score-panel {
-  right: 5.5%;
+  right: var(--hud-edge);
 }
 
 .panel-label {
-  color: #91a8b7;
+  color: #adc1ce;
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 1.8px;
+  letter-spacing: 1.1px;
 }
 
 .exploration-number {
-  margin-top: 12px;
-  font-size: 45px;
+  margin-top: 5px;
+  font-size: 40px;
   font-weight: 700;
   letter-spacing: -2px;
 }
@@ -353,7 +357,7 @@ button:focus-visible {
 .progress-track {
   width: 100%;
   height: 5px;
-  margin: 15px 0;
+  margin: 9px 0 12px;
   overflow: hidden;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.15);
@@ -365,60 +369,44 @@ button:focus-visible {
   background: #70d7b0;
 }
 
-.panel-bottom,
 .stat-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
   color: #b7c5ce;
   font-size: 11px;
 }
 
-.panel-bottom strong,
 .stat-row strong {
   color: #ffffff;
   font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .panel-divider {
   height: 1px;
-  margin: 16px 0;
+  margin: 10px 0;
   background: rgba(255, 255, 255, 0.13);
 }
 
-.region-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #a9e6d0;
-  font-size: 10px;
-}
-
-.region-indicator {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #70d7b0;
-}
-
 .score-number {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-top: 13px;
-  font-size: 37px;
+  margin-top: 4px;
+  font-size: clamp(23px, 3vw, 33px);
   font-weight: 700;
   letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
 }
 
-.score-number span {
-  color: #aebfca;
-  font-size: 10px;
-  letter-spacing: 1px;
+.score-number small {
+  color: #adc1ce;
+  font-size: 9px;
+  letter-spacing: 0;
 }
 
 .stat-row + .stat-row {
-  margin-top: 13px;
+  margin-top: 5px;
 }
 
 .stat-row small {
@@ -428,37 +416,18 @@ button:focus-visible {
 
 /* 중앙 안내 */
 
-.center-message {
-  position: absolute;
-  top: 75%;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  transform: translateX(-50%);
-  color: #aebfca;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 3px;
-}
-
-.center-message span {
-  width: 25px;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.3);
-}
-
 /* 하단 조작 안내 */
 
 .game-footer {
   position: absolute;
   z-index: 10;
-  right: 5.5%;
-  bottom: 27px;
-  left: 5.5%;
+  right: var(--hud-edge);
+  bottom: 16px;
+  left: var(--hud-edge);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .control-guide {
@@ -477,6 +446,11 @@ button:focus-visible {
   gap: 7px;
   color: #d1dce3;
   font-size: 10px;
+}
+
+.control-keys {
+  display: flex;
+  gap: 3px;
 }
 
 .key {
@@ -500,6 +474,7 @@ button:focus-visible {
   background: rgba(13, 30, 42, 0.7);
   font-size: 11px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .finish-button:hover {
@@ -508,25 +483,22 @@ button:focus-visible {
 
 /* 일시정지 팝업 */
 
-.modal-overlay {
-  position: absolute;
-  z-index: 20;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 20px;
+.pause-modal::backdrop {
   background: rgba(6, 22, 34, 0.65);
   backdrop-filter: blur(5px);
 }
 
 .pause-modal {
-  width: min(420px, 100%);
-  padding: 43px 38px;
+  width: min(390px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 26px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 13px;
   color: #ffffff;
   background: #172e3e;
   text-align: center;
+  line-height: 1.5;
 }
 
 .modal-eyebrow {
@@ -536,26 +508,11 @@ button:focus-visible {
   letter-spacing: 2.5px;
 }
 
-.modal-symbol {
-  display: grid;
-  width: 60px;
-  height: 60px;
-  margin: 25px auto;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 50%;
-  font-size: 27px;
-}
-
 .pause-modal h2 {
-  margin: 0;
+  margin: 8px 0 0;
+  color: #ffffff;
   font-size: 24px;
-}
-
-.pause-modal p {
-  margin: 12px 0 28px;
-  color: #a8bac5;
-  font-size: 12px;
+  font-weight: 800;
 }
 
 .modal-primary {
@@ -596,11 +553,15 @@ button:focus-visible {
 .result-screen {
   display: grid;
   place-items: center;
-  background: #172a38;
+  height: auto;
+  min-height: 100vh;
+  padding: clamp(24px, 5vh, 56px) 0;
+  background: radial-gradient(ellipse at 50% 0%, #284b61, #172a38 65%);
+  line-height: 1.4;
 }
 
 .result-content {
-  width: min(510px, 90%);
+  width: min(510px, calc(100% - 32px));
   text-align: center;
 }
 
@@ -616,18 +577,14 @@ button:focus-visible {
 }
 
 .result-content h1 {
-  margin: 20px 0 10px;
-  font-size: clamp(27px, 4vw, 38px);
-}
-
-.result-description {
-  margin: 0 0 28px;
-  color: #b5c5cf;
-  font-size: 12px;
+  margin: 10px 0 6px;
+  color: #ffffff;
+  font-size: clamp(27px, 5vw, 42px);
+  font-weight: 800;
 }
 
 .result-score-card {
-  padding: 28px 30px;
+  padding: clamp(14px, 3vw, 24px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   color: #ffffff;
@@ -641,11 +598,18 @@ button:focus-visible {
   letter-spacing: 2px;
 }
 
+h2.result-card-label {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
 .result-score {
-  margin-top: 10px;
-  font-size: 57px;
+  margin-top: 3px;
+  font-size: clamp(38px, 6vw, 54px);
   font-weight: 800;
   letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
 }
 
 .result-score span {
@@ -656,19 +620,19 @@ button:focus-visible {
 
 .result-divider {
   height: 1px;
-  margin: 22px 0;
+  margin: 14px 0;
   background: rgba(255, 255, 255, 0.15);
 }
 
 .result-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .result-stats > div {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 3px;
 }
 
 .result-stats > div + div {
@@ -691,14 +655,16 @@ button:focus-visible {
 
 .result-actions {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 3px;
-  margin-top: 23px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 18px;
 }
 
-.result-actions .primary-button {
-  width: 245px;
+.result-actions button {
+  width: min(100%, 190px);
+  margin: 0;
 }
 
 /* 반응형 */
@@ -711,14 +677,6 @@ button:focus-visible {
   .hud-panel {
     width: 195px;
     padding: 16px;
-  }
-
-  .exploration-panel {
-    left: 3%;
-  }
-
-  .score-panel {
-    right: 3%;
   }
 
   .control-guide {
@@ -740,7 +698,7 @@ button:focus-visible {
 
   .top-header,
   .game-header {
-    padding: 20px;
+    padding: 13px var(--hud-edge, 16px) 18px;
   }
 
   .brand {
@@ -767,11 +725,12 @@ button:focus-visible {
   }
 
   .flight-status {
-    top: 82px;
-    left: 20px;
+    position: static;
     transform: none;
-    padding: 7px 10px;
+    gap: 4px;
+    padding: 5px 7px;
     font-size: 8px;
+    letter-spacing: 0.5px;
   }
 
   .pause-button {
@@ -780,17 +739,9 @@ button:focus-visible {
   }
 
   .hud-panel {
-    top: 125px;
-    width: 155px;
-    padding: 13px;
-  }
-
-  .exploration-panel {
-    left: 12px;
-  }
-
-  .score-panel {
-    right: 12px;
+    top: 72px;
+    width: min(162px, calc(50% - var(--hud-edge) - 4px));
+    padding: 9px;
   }
 
   .panel-label {
@@ -802,61 +753,46 @@ button:focus-visible {
   }
 
   .score-number {
-    font-size: 28px;
+    font-size: 22px;
   }
 
-  .panel-bottom,
+  .score-number small {
+    display: block;
+  }
+
   .stat-row {
     font-size: 9px;
   }
 
-  .panel-bottom strong,
   .stat-row strong {
     font-size: 10px;
   }
 
-  .region-status {
-    font-size: 8px;
-  }
-
   .game-footer {
-    right: 12px;
-    bottom: 18px;
-    left: 12px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    bottom: 12px;
+    gap: 6px;
   }
 
   .control-guide {
-    justify-content: center;
-    gap: 13px;
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 4px 8px;
+    padding: 6px;
   }
 
   .control-item {
-    flex-direction: column;
     font-size: 8px;
+  }
+
+  .control-item .key {
+    width: 16px;
+    height: 16px;
+    font-size: 9px;
   }
 
   .finish-button {
-    width: 100%;
-  }
-
-  .center-message {
-    top: 73%;
-    font-size: 8px;
-  }
-
-  .result-content {
-    width: 90%;
-  }
-
-  .result-score-card {
-    padding: 22px 15px;
-  }
-
-  .result-score {
-    font-size: 47px;
+    padding: 8px;
+    font-size: 10px;
   }
 
   .result-stats strong {

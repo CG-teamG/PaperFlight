@@ -1,4 +1,3 @@
-
 /*
  * ============================================================
  * 파일명: App.jsx
@@ -22,6 +21,12 @@ import * as THREE from 'three'
 import { EMPTY_FLIGHT_PROGRESS } from './game/FlightProgress.js'
 import { createGameScene } from './game/GameScene.js'
 import './App.css'
+
+const FLIGHT_CONTROLS = [
+  { keys: ['↑', '↓'], label: '상승·하강' },
+  { keys: ['←', '→'], label: '좌우 회전' },
+  { keys: ['A', 'D'], label: '기울이기' },
+]
 
 // 초 단위 시간을 00:00 형식으로 변환
 function formatTime(seconds) {
@@ -63,9 +68,9 @@ function StartScreen({ onStart }) {
         </h1>
 
         <p className="start-description">
-          종이비행기를 타고 미지의 세계를 탐험하세요.
+          링을 통과해 섬의 지형을 조사하세요.
           <br />
-          하늘을 가로지르며 새로운 지역을 발견해 보세요.
+          비행을 마치면 점수와 조사 기록을 확인할 수 있어요.
         </p>
 
         <button className="primary-button start-button" onClick={onStart}>
@@ -75,7 +80,7 @@ function StartScreen({ onStart }) {
 
         <div className="start-hint">
           <span className="hint-dot" />
-          준비되었다면 하늘로 날아오르세요
+          방향키로 조종 · A/D로 날개 기울이기
         </div>
       </section>
 
@@ -89,7 +94,8 @@ function StartScreen({ onStart }) {
 
 // 게임 플레이 화면
 function PlayingScreen({ time, progress, sceneContainer, onPause, onFinish, isPaused }) {
-  const { score, passedRings, totalRings, exploration, completedTerrains, totalTerrains } = progress
+  const { score, passedRings, totalRings, completedTerrains, totalTerrains } = progress
+  const surveyProgress = totalTerrains ? completedTerrains / totalTerrains * 100 : 0
 
   return (
     <main className="game-screen">
@@ -100,7 +106,7 @@ function PlayingScreen({ time, progress, sceneContainer, onPause, onFinish, isPa
 
         <div className={`flight-status ${isPaused ? 'paused' : ''}`}>
           <span className="status-dot" />
-          {isPaused ? 'PAUSED' : 'IN FLIGHT'}
+          {isPaused ? '일시정지' : '비행 중'}
         </div>
 
         <button className="pause-button" onClick={onPause}>
@@ -111,29 +117,20 @@ function PlayingScreen({ time, progress, sceneContainer, onPause, onFinish, isPa
 
       {/* 좌측 탐험 정보 */}
       <aside className="hud-panel exploration-panel">
-        <div className="panel-label">EXPLORATION</div>
+        <div className="panel-label">조사 완료 지형</div>
 
         <div className="exploration-number">
-          {exploration}<span>%</span>
+          {completedTerrains}<span> / {totalTerrains}</span>
         </div>
 
-        <div className="progress-track">
+        <div
+          className="progress-track" role="progressbar" aria-label="조사 완료 지형"
+          aria-valuenow={completedTerrains} aria-valuemax={totalTerrains || 1}
+        >
           <div
             className="progress-fill"
-            style={{ width: `${exploration}%` }}
+            style={{ width: `${surveyProgress}%` }}
           />
-        </div>
-
-        <div className="panel-bottom">
-          <span>탐험 완료 지형</span>
-          <strong>{completedTerrains} / {totalTerrains}</strong>
-        </div>
-
-        <div className="panel-divider" />
-
-        <div className="region-status">
-          <span className="region-indicator" />
-          새로운 지역 탐험 중
         </div>
       </aside>
 
@@ -143,7 +140,7 @@ function PlayingScreen({ time, progress, sceneContainer, onPause, onFinish, isPa
 
         <div className="score-number">
           {score.toLocaleString()}
-          <span>PTS</span>
+          <small>PTS</small>
         </div>
 
         <div className="panel-divider" />
@@ -159,41 +156,21 @@ function PlayingScreen({ time, progress, sceneContainer, onPause, onFinish, isPa
         </div>
       </aside>
 
-      {/* 중앙 안내 */}
-      <div className="center-message">
-        <span />
-        KEEP EXPLORING
-        <span />
-      </div>
-
       {/* 하단 조작 안내 */}
       <footer className="game-footer">
         <div className="control-guide">
-          <div className="control-item">
-            <span className="key">↑</span>
-            <span>상승</span>
-          </div>
-          <div className="control-item">
-            <span className="key">↓</span>
-            <span>하강</span>
-          </div>
-          <div className="control-item">
-            <span className="key">←</span>
-            <span>좌회전</span>
-          </div>
-          <div className="control-item">
-            <span className="key">→</span>
-            <span>우회전</span>
-          </div>
-          <div className="control-item">
-            <span className="key">A</span>
-            <span className="key">D</span>
-            <span>날개 기울이기</span>
-          </div>
+          {FLIGHT_CONTROLS.map(({ keys, label }) => (
+            <div className="control-item" key={label}>
+              <span className="control-keys">
+                {keys.map((key) => <kbd className="key" key={key}>{key}</kbd>)}
+              </span>
+              <span>{label}</span>
+            </div>
+          ))}
         </div>
 
         <button className="finish-button" onClick={onFinish}>
-          비행 종료하기 →
+          비행 종료 →
         </button>
       </footer>
     </main>
@@ -202,48 +179,55 @@ function PlayingScreen({ time, progress, sceneContainer, onPause, onFinish, isPa
 
 // 일시정지 팝업
 function PauseScreen({ onResume, onRestart, onHome }) {
+  const modal = useRef(null)
+
+  useEffect(() => {
+    const dialog = modal.current
+    dialog.showModal()
+    return () => dialog.close()
+  }, [])
+
   return (
-    <div className="modal-overlay">
-      <div className="pause-modal">
-        <div className="modal-eyebrow">FLIGHT PAUSED</div>
-        <div className="modal-symbol">Ⅱ</div>
+    <dialog
+      className="pause-modal"
+      ref={modal}
+      aria-labelledby="pause-title"
+      onCancel={(event) => {
+        event.preventDefault()
+        onResume()
+      }}
+    >
+      <div className="modal-eyebrow">FLIGHT PAUSED</div>
+      <h2 id="pause-title">비행 일시정지</h2>
+      <button className="primary-button modal-primary" onClick={onResume}>
+        이어서 비행하기 <span>→</span>
+      </button>
 
-        <h2>잠시 쉬어가세요.</h2>
-        <p>비행이 일시정지되었습니다.</p>
+      <button className="secondary-button" onClick={onRestart}>
+        처음부터 다시 시작
+      </button>
 
-        <button className="primary-button modal-primary" onClick={onResume}>
-          이어서 비행하기 <span>→</span>
-        </button>
-
-        <button className="secondary-button" onClick={onRestart}>
-          처음부터 다시 시작
-        </button>
-
-        <button className="text-button" onClick={onHome}>
-          메인 화면으로 돌아가기
-        </button>
-      </div>
-    </div>
+      <button className="text-button" onClick={onHome}>
+        메인 화면으로 돌아가기
+      </button>
+    </dialog>
   )
 }
 
 // 결과 화면
 function ResultScreen({ time, progress, onRestart, onHome }) {
-  const { score, passedRings, exploration } = progress
+  const { score, passedRings, completedTerrains, totalTerrains } = progress
 
   return (
     <main className="result-screen">
       <div className="result-content">
         <div className="result-eyebrow">
           <span />
-          FLIGHT COMPLETED
+          FLIGHT LOG
           <span />
         </div>
 
-        <h1>비행을 완료했어요!</h1>
-        <p className="result-description">
-          새로운 세계를 향한 멋진 비행이었습니다.
-        </p>
+        <h1>비행 기록</h1>
 
         <section className="result-score-card">
           <span className="result-card-label">TOTAL SCORE</span>
@@ -262,8 +246,8 @@ function ResultScreen({ time, progress, onRestart, onHome }) {
             </div>
 
             <div>
-              <span>탐험률</span>
-              <strong>{exploration}<small>%</small></strong>
+              <span>완료 지형</span>
+              <strong>{completedTerrains}<small> / {totalTerrains}</small></strong>
             </div>
 
             <div>
@@ -311,6 +295,16 @@ function App() {
   useEffect(() => {
     scene.current?.setPaused(isPaused)
   }, [isPaused])
+
+  useEffect(() => {
+    if (gameState !== 'playing') return
+
+    const pauseWhenHidden = () => {
+      if (document.hidden) setGameState('paused')
+    }
+    document.addEventListener('visibilitychange', pauseWhenHidden)
+    return () => document.removeEventListener('visibilitychange', pauseWhenHidden)
+  }, [gameState])
 
   // 게임이 진행 중일 때만 시간 증가
   useEffect(() => {
