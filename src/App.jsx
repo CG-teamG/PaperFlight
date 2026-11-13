@@ -50,7 +50,7 @@ function formatTime(seconds) {
   return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
 }
 
-function FlightRoute({ path, distance, discovered = [], landingPad, recommendedRing, showLegend = false }) {
+function FlightRoute({ path, distance, discovered = [], landingPad, recommendedRing, showLegend = false, preview = false }) {
   const halfMap = MAP_SIZE / 2
   const xs = path.map(({ x }) => x)
   const zs = path.map(({ z }) => z)
@@ -69,22 +69,22 @@ function FlightRoute({ path, distance, discovered = [], landingPad, recommendedR
 
   return (
     <div className="flight-route">
-      <div className="flight-route-heading">
+      {!preview && <div className="flight-route-heading">
         <span>비행 경로</span>
         <strong>{Math.round(distance).toLocaleString()} <small>u</small></strong>
-      </div>
+      </div>}
       <svg
         className="flight-route-map"
         viewBox={`${left - padding} ${top - padding} ${width + padding * 2} ${height + padding * 2}`}
         role="img"
-        aria-label="지형 지도 위에 표시한 비행 경로"
+        aria-label={preview ? '탐사할 섬의 지도' : '지형 지도 위에 표시한 비행 경로'}
       >
         {terrain.map(({ key, type, zoneId, elevation, shape }) => (
           <path
             key={key}
             className={`map-terrain-${type}`}
             data-elevation={elevation}
-            style={{ '--survey-reveal': Number(discovered.includes(zoneId)) }}
+            style={{ '--survey-reveal': preview ? 1 : Number(discovered.includes(zoneId)) }}
             d={shape}
           />
         ))}
@@ -119,8 +119,8 @@ function FlightRoute({ path, distance, discovered = [], landingPad, recommendedR
 function Logo() {
   return (
     <div className="brand">
-      <div className="brand-icon">✈</div>
-      <span>PAPER<span>FLIGHT</span></span>
+      <span className="brand-icon" aria-hidden="true">✈</span>
+      <span>PaperFlight</span>
     </div>
   )
 }
@@ -131,21 +131,12 @@ function StartScreen({ onStart }) {
     <main className="start-screen">
       <header className="top-header">
         <Logo />
-        <span className="version-label">3D EXPLORATION GAME</span>
+        <span className="version-label">섬 탐사 비행</span>
       </header>
 
+      <div className="start-layout">
       <section className="start-content">
-        <div className="eyebrow">
-          <span className="eyebrow-line" />
-          EXPLORE THE UNKNOWN
-        </div>
-
-        <h1>
-          PAPER
-          <br />
-          <span>FLIGHT</span>
-        </h1>
-
+        <h1>섬을<br /> 기록하다.</h1>
         <p className="start-description">
           섬을 자유롭게 탐색하고 비행 경로를 남기세요.
           <br />
@@ -157,17 +148,29 @@ function StartScreen({ onStart }) {
           <span>→</span>
         </button>
 
-        <div className="start-hint">
-          <span className="hint-dot" />
-          방향키로 조종 · W/S로 속도 조절
-        </div>
+        <FlightControls />
       </section>
-
-      <footer className="start-bottom">
-        <span>EXPLORE · DISCOVER · FLY</span>
-        <span>© PAPERFLIGHT 2026</span>
-      </footer>
+      <figure className="start-chart">
+        <figcaption>탐사 구역</figcaption>
+        <FlightRoute path={[]} distance={0} preview />
+      </figure>
+      </div>
     </main>
+  )
+}
+
+function FlightControls() {
+  return (
+    <div className="control-guide" aria-label="비행 조작">
+      {FLIGHT_CONTROLS.map(({ keys, label }) => (
+        <div className="control-item" key={label}>
+          <span className="control-keys">
+            {keys.map((key) => <kbd className="key" key={key}>{key}</kbd>)}
+          </span>
+          <span>{label}</span>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -190,7 +193,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFin
 
         <div className={`flight-status ${isPaused ? 'paused' : ''}`}>
           <span className="status-dot" />
-          {isPaused ? '일시정지' : '비행 중'}
+          {isPaused ? '일시정지' : autoLanding ? '자동 착륙' : storm ? '비상 귀환' : '탐색 중'}
         </div>
 
         <button className="pause-button" onClick={onPause}>
@@ -254,7 +257,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFin
       <aside className="hud-panel score-panel">
         <div className="score-readout">
           <div>
-            <div className="panel-label">FLIGHT SCORE</div>
+            <div className="panel-label">비행 점수</div>
             <div className="score-number">{score.toLocaleString()} <small>PTS</small></div>
           </div>
           <div className="speed-readout">
@@ -319,16 +322,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFin
 
       {/* 하단 조작 안내 */}
       <footer className="game-footer">
-        <div className="control-guide">
-          {FLIGHT_CONTROLS.map(({ keys, label }) => (
-            <div className="control-item" key={label}>
-              <span className="control-keys">
-                {keys.map((key) => <kbd className="key" key={key}>{key}</kbd>)}
-              </span>
-              <span>{label}</span>
-            </div>
-          ))}
-        </div>
+        <FlightControls />
 
         {!storm && <button className="finish-button" onClick={onFinish}>비행 종료 →</button>}
       </footer>
@@ -356,7 +350,6 @@ function PauseScreen({ onResume, onRestart, onHome, storm }) {
         onResume()
       }}
     >
-      <div className="modal-eyebrow">FLIGHT PAUSED</div>
       <h2 id="pause-title">비행 일시정지</h2>
       <p className="score-rules">
         링 통과 {BASE_RING_POINTS}점 · H 착륙 성공 +{LANDING_BONUS_POINTS}점
@@ -402,7 +395,7 @@ function ResultScreen({ progress, onRestart, onHome }) {
 
         <div className="result-grid">
           <section className="result-score-card">
-            <span className="result-card-label">TOTAL SCORE</span>
+            <span className="result-card-label">총점</span>
 
             <div className="result-score">
               {score.toLocaleString()}

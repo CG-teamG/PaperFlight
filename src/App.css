@@ -1,1273 +1,204 @@
-
-/*
- * ============================================================
- * 파일명: App.css
- * 담당자: 예빈 - 게임 UI
- * 역할: PaperFlight 게임 UI의 레이아웃과 디자인을 담당한다.
- *
- * 구현 내용:
- * 1. 시작 화면 및 게임 HUD
- * 2. 일시정지 팝업
- * 3. 결과 화면
- * 4. 반응형 레이아웃
- *
- * 참고:
- * 실제 3D 환경은 다른 팀원이 구현한다.
- * 이 파일에서는 별도의 지형이나 배경 오브젝트를 만들지 않는다.
- * ============================================================
- */
-
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
 
 :root {
   font-family: 'DM Sans', 'Noto Sans KR', sans-serif;
-  color: #ffffff;
-  background: #172a38;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  color: #f4f3e9;
+  background: #101e21;
+  color-scheme: dark;
+  --ink: #f4f3e9;
+  --muted: #bac9c6;
+  --mint: #a8dcc6;
+  --amber: #ffd08a;
+  --panel: #14272b;
+  --edge: #a1c4bd45;
 }
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  width: 100%;
-  min-width: 320px;
-  min-height: 100%;
-  margin: 0;
-}
-
-body {
-  min-height: 100vh;
-  display: block;
-  overflow-x: hidden;
-}
-
-#root {
-  max-width: none;
-  padding: 0;
-  text-align: left;
-}
-
-button {
-  font: inherit;
-  cursor: pointer;
-}
-
-button:focus-visible {
-  outline: 3px solid #8ccaff;
-  outline-offset: 4px;
-}
-
-.app {
-  width: 100%;
-  min-height: 100vh;
-  overflow: hidden;
-}
-
-/* 공통 화면 */
-
-.start-screen,
-.game-screen,
-.result-screen {
-  position: relative;
-  width: 100%;
-  height: 100vh;
-  min-height: 650px;
-  overflow: hidden;
-  background: #263d4c;
-}
-
-/* 시작 화면 */
-
+* { box-sizing: border-box; }
+body { margin: 0; }
+#root { width: 100%; max-width: none; border: 0; text-align: left; }
+h1, h2, p, figure { margin: 0; }
+h1, h2 { color: var(--ink); font-family: inherit; font-weight: 800; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+button:disabled { opacity: .44; cursor: default; }
+.app { min-height: 100dvh; }
+.brand, .control-guide, .control-item, .control-keys, .flight-status { display: flex; align-items: center; }
+.brand { gap: 9px; font-size: 1.1rem; font-weight: 800; }
+.brand-icon { color: var(--mint); }
+.top-header, .game-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.version-label, .panel-label, .result-card-label { color: var(--muted); font-size: .75rem; font-weight: 700; }
 .start-screen {
-  background:
-    radial-gradient(ellipse at 75% 40%, #385b70 0%, transparent 48%),
-    #172a38;
+  min-height: 100dvh;
+  padding: clamp(20px, 5vw, 70px);
+  background: radial-gradient(ellipse at 77% 55%, #2b4845, #101e21 68%);
 }
-
-.top-header,
-.game-header {
-  position: absolute;
-  z-index: 10;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 30px 5.5%;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #ffffff;
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: 2px;
-}
-
-.brand > span > span {
-  font-weight: 500;
-}
-
-.brand-icon {
+.start-layout {
   display: grid;
-  width: 31px;
-  height: 31px;
-  place-items: center;
-  font-size: 18px;
-  transform: rotate(-45deg);
-}
-
-.version-label {
-  color: #a9bdca;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 2px;
-}
-
-.start-content {
-  position: absolute;
-  top: 50%;
-  left: 12%;
-  width: min(480px, 80%);
-  transform: translateY(-42%);
-}
-
-.eyebrow,
-.result-eyebrow {
-  display: flex;
+  grid-template-columns: minmax(0, .85fr) minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
-  color: #a9d6e9;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 3px;
+  gap: clamp(28px, 7vw, 108px);
+  max-width: 1250px;
+  margin: clamp(40px, 9vh, 108px) auto 0;
 }
-
-.eyebrow-line {
-  display: inline-block;
-  width: 28px;
-  height: 1px;
-  background: #a9d6e9;
+.start-content h1 { font-size: clamp(3.4rem, 8vw, 8rem); letter-spacing: -.085em; line-height: .98; }
+.start-description { margin: 24px 0; color: var(--muted); font-size: clamp(.85rem, 1.25vw, 1rem); line-height: 1.8; }
+.start-chart { padding: clamp(14px, 3vw, 32px); border: 1px solid var(--edge); background: #152a2c; border-radius: 18px; }
+.start-chart figcaption { margin-bottom: 12px; color: var(--mint); font-size: .78rem; }
+.start-chart .flight-route-map { height: auto; aspect-ratio: 1.12; }
+.start-content .control-guide { margin-top: 17px; padding: 0; border: 0; background: none; }
+.primary-button, .secondary-button, .pause-button, .finish-button, .landing-guide-button, .text-button {
+  min-height: 38px; border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: .8rem;
 }
-
-.start-content h1 {
-  margin: 24px 0 18px;
-  color: #ffffff;
-  font-size: clamp(70px, 10vw, 126px);
-  font-weight: 800;
-  line-height: 0.83;
-  letter-spacing: -7px;
+.primary-button { border: 1px solid transparent; background: var(--mint); color: #132924; }
+.primary-button:hover { background: #c2f3de; }
+.start-button { display: inline-flex; align-items: center; justify-content: space-between; gap: 44px; min-height: 54px; }
+.secondary-button, .pause-button, .finish-button, .landing-guide-button {
+  border: 1px solid var(--edge); background: #15282e; color: var(--ink);
 }
+.secondary-button:hover:not(:disabled), .pause-button:hover, .finish-button:hover, .landing-guide-button:hover { background: #28454a; }
+.text-button { border: 0; background: transparent; color: var(--muted); }
+.text-button:hover { color: var(--ink); }
 
-.start-content h1 span {
-  color: #9fd6f0;
-}
-
-.start-description {
-  margin: 30px 0;
-  color: #c2d0d9;
-  font-size: 14px;
-  line-height: 2;
-}
-
-.primary-button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 28px;
-  min-width: 220px;
-  min-height: 58px;
-  padding: 0 25px;
-  border: 0;
-  border-radius: 7px;
-  color: #ffffff;
-  background: #2469a5;
-  font-size: 14px;
-  font-weight: 700;
-  transition: background 0.2s, transform 0.2s;
-}
-
-.primary-button:hover {
-  background: #174f86;
-  transform: translateY(-2px);
-}
-
-.start-button {
-  width: 245px;
-}
-
-.start-button span {
-  font-size: 20px;
-}
-
-.start-hint {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-top: 25px;
-  color: #aebfca;
-  font-size: 11px;
-}
-
-.hint-dot,
-.status-dot {
-  width: 7px;
-  height: 7px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: #70e0a5;
-  box-shadow: 0 0 10px #70e0a5;
-}
-
-.start-bottom {
-  position: absolute;
-  right: 5.5%;
-  bottom: 27px;
-  left: 5.5%;
-  display: flex;
-  justify-content: space-between;
-  color: #8299a8;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 2px;
-}
-
-/* 게임 플레이 화면 */
-
-.game-screen {
-  --hud-edge: clamp(14px, 3vw, 46px);
-  background: #263d4c;
-  line-height: 1.35;
-}
-
-.flight-scene {
-  position: absolute;
-  inset: 0;
-}
-
-.flight-scene canvas {
-  display: block;
-}
-
-.game-header {
-  padding: 19px var(--hud-edge) 24px;
-  background: linear-gradient(rgba(8, 24, 36, 0.86), rgba(8, 24, 36, 0));
-}
-
-.flight-status {
-  position: absolute;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transform: translateX(-50%);
-  padding: 10px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 30px;
-  color: #ffffff;
-  background: rgba(15, 32, 44, 0.5);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-}
-
-/* 일시정지 상태 */
-
-.flight-status.paused {
-  border-color: rgba(255, 85, 85, 0.6);
-  color: #ffcccc;
-}
-
-.flight-status.paused .status-dot {
-  background: #ff5555;
-  box-shadow: 0 0 10px #ff5555;
-}
-
-.pause-button {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 11px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 7px;
-  color: #ffffff;
-  background: rgba(15, 32, 44, 0.45);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.pause-button:hover {
-  background: rgba(15, 32, 44, 0.8);
-}
-
-.pause-icon {
-  font-size: 17px;
-}
-
-/* 좌우 HUD */
-
+.game-screen { position: relative; height: 100dvh; min-height: 420px; overflow: hidden; --hud-edge: clamp(10px, 2.5vw, 34px); }
+.flight-scene, .game-header { position: absolute; inset: 0; }
+.flight-scene canvas { display: block; }
+.game-header { bottom: auto; padding: 13px var(--hud-edge) 23px; z-index: 3; background: linear-gradient(#101e21ed, transparent); }
+.flight-status { gap: 7px; border: 1px solid var(--edge); border-radius: 30px; padding: 5px 12px; background: #15282eee; font-size: .73rem; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); }
+.paused .status-dot { background: var(--muted); }
+.storm-active .flight-status, .storm-active .flight-objective strong { color: var(--amber); }
+.storm-active .status-dot { background: var(--amber); }
+.pause-icon { margin-right: 6px; }
 .hud-panel {
-  position: absolute;
-  z-index: 9;
-  top: 87px;
-  width: 224px;
-  padding: 15px;
-  border: 1px solid rgba(185, 222, 239, 0.24);
-  border-radius: 12px;
-  color: #ffffff;
-  background: rgba(13, 30, 42, 0.88);
-  box-shadow: 0 5px 18px rgba(6, 20, 31, 0.18);
+  position: absolute; top: 76px; z-index: 2; width: clamp(164px, 19vw, 244px);
+  padding: 14px; background: #14272bef; border: 1px solid var(--edge); border-radius: 12px;
+  box-shadow: 0 8px 26px #0a151849; line-height: 1.4;
 }
-
-.exploration-panel {
-  left: var(--hud-edge);
+.exploration-panel { left: var(--hud-edge); }
+.score-panel { right: var(--hud-edge); }
+.storm-active .exploration-panel { border-color: #d7a453; }
+.storm-active .landing-direction { border-color: #d7a453; background: #35271e; }
+.exploration-number, .score-number, .speed-number { font-variant-numeric: tabular-nums; font-weight: 800; }
+.exploration-number, .score-number { font-size: clamp(1.5rem, 3vw, 2.25rem); letter-spacing: -.045em; }
+.exploration-number span, .score-number small, .speed-number small, .stat-row small { color: var(--muted); font-size: .68rem; letter-spacing: 0; }
+.progress-track, .speed-meter { width: 100%; height: 5px; border-radius: 10px; background: #324b4e; }
+.progress-track { overflow: hidden; margin: 5px 0 10px; }
+.progress-fill { height: 100%; background: var(--mint); }
+.flight-objective { display: grid; gap: 6px; color: var(--muted); font-size: .72rem; }
+.flight-objective strong { color: var(--mint); font-size: .82rem; }
+.landing-guide-button { margin-top: 3px; padding: 4px 8px; min-height: 28px; text-align: left; font-size: inherit; }
+.score-readout { display: flex; justify-content: space-between; gap: 8px; align-items: end; }
+.speed-readout { text-align: right; }
+.speed-number { color: var(--mint); font-size: 1.15rem; }
+.speed-meter { display: block; accent-color: var(--mint); }
+.stat-row, .flight-route-heading, .result-score-breakdown div { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: .72rem; color: var(--muted); }
+.stat-row + .stat-row { margin-top: 4px; }
+.stat-row strong, .flight-route-heading strong { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.panel-divider, .result-divider { height: 1px; margin: 9px 0; background: var(--edge); }
+.flight-terrain-list, .terrain-results {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;
+  margin: 9px 0 0; padding: 0; list-style: none; font-size: .71rem;
 }
-
-.score-panel {
-  right: var(--hud-edge);
-}
-
-.panel-label {
-  color: #adc1ce;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1.1px;
-}
-
-.exploration-number {
-  margin-top: 5px;
-  font-size: 40px;
-  font-weight: 700;
-  letter-spacing: -2px;
-}
-
-.exploration-number span {
-  margin-left: 3px;
-  font-size: 19px;
-}
-
-.progress-track {
-  width: 100%;
-  height: 5px;
-  margin: 9px 0 12px;
-  overflow: hidden;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: 10px;
-  background: #70d7b0;
-}
-
-.stat-row,
-.flight-route-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  color: #b7c5ce;
-  font-size: 11px;
-}
-
-.stat-row strong,
-.flight-route-heading strong {
-  color: #ffffff;
-  font-size: 12px;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.panel-divider {
-  height: 1px;
-  margin: 10px 0;
-  background: rgba(255, 255, 255, 0.13);
-}
-
-.flight-objective {
-  display: grid;
-  gap: 4px;
-  margin-top: 11px;
-  padding-top: 9px;
-  border-top: 1px solid rgba(255, 255, 255, 0.13);
-  color: #bed0dc;
-  font-size: 10px;
-}
-
-.flight-objective strong {
-  color: #a9e6d0;
-}
-
-.landing-guide-button {
-  margin-top: 4px;
-  padding: 6px 8px;
-  border: 1px solid #7296ae;
-  border-radius: 6px;
-  background: #1c3b50;
-  color: #e4f4ff;
-  font-size: inherit;
-  font-weight: 700;
-  text-align: left;
-}
-
-.landing-guide-button:hover {
-  background: #2b4e65;
-}
-
-.flight-terrain-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  margin: 9px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 10px;
-}
-
-.flight-terrain-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 3px;
-  padding: 4px 5px;
-  border-radius: 5px;
-  background: #1a3445;
-}
-
-.score-readout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 8px;
-}
-
-.score-number {
-  margin-top: 4px;
-  font-size: clamp(23px, 3vw, 33px);
-  font-weight: 700;
-  letter-spacing: -1px;
-  font-variant-numeric: tabular-nums;
-}
-
-.score-number small,
-.speed-number small,
-.flight-route-heading small {
-  color: #adc1ce;
-  font-size: 9px;
-  letter-spacing: 0;
-}
-
-.speed-readout {
-  text-align: right;
-}
-
-.speed-number {
-  margin-top: 4px;
-  color: #a9dcf4;
-  font-size: 19px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.speed-meter {
-  display: block;
-  width: 100%;
-  height: 5px;
-  accent-color: #a9dcf4;
-}
-
-.speed-meter::-webkit-meter-bar {
-  border: 0;
-  background: #334e60;
-}
-
-.speed-meter::-webkit-meter-optimum-value {
-  border-radius: 4px;
-  background: #a9dcf4;
-}
-
-.speed-meter::-moz-meter-bar {
-  background: #a9dcf4;
-}
-
-.stat-row + .stat-row {
-  margin-top: 5px;
-}
-
+.flight-terrain-list li, .terrain-results li { display: flex; justify-content: space-between; gap: 3px; border-radius: 5px; padding: 4px 6px; background: #243a3d; }
+.terrain-complete { color: var(--mint); }
 .flight-route-map {
-  --terrain-color: #244d65;
-  display: block;
-  width: 100%;
-  height: clamp(78px, 14vh, 108px);
-  margin-top: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  background: var(--terrain-color);
+  display: block; width: 100%; height: clamp(74px, 15vh, 134px); margin-top: 6px;
+  border-radius: 8px; border: 1px solid var(--edge);
+  background: repeating-linear-gradient(0deg, transparent 0 23px, #bedbd21a 24px 25px), repeating-linear-gradient(90deg, #233d4a 0 23px, #2e4b57 24px 25px);
 }
+.map-terrain-mountain { --terrain-color: #d6bda3; }
+.map-terrain-forest { --terrain-color: #76ba91; }
+.map-terrain-canyon { --terrain-color: #d69d77; }
+.map-terrain-plain { --terrain-color: #bcc98e; }
+.map-terrain-sea { --terrain-color: #426a7c; }
+.flight-route-map [data-elevation] { fill: var(--terrain-color); filter: saturate(var(--survey-reveal, 0)); }
+.flight-route-map [data-elevation="0"] { opacity: .7; }
+.flight-route-map [data-elevation="1"] { opacity: .88; }
+.flight-route-line, .recommended-map-marker { fill: none; stroke: #ecfff3; stroke-width: 1.8; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+.recommended-map-marker { stroke: #99ebff; }
+.flight-route-start, .flight-route-end, .landing-map-marker circle { stroke: #14272b; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.flight-route-start, .route-legend-start { fill: #b3f2c7; --terrain-color: #b3f2c7; }
+.flight-route-end, .route-legend-end { fill: var(--amber); --terrain-color: var(--amber); }
+.landing-map-marker circle, .route-legend-landing { fill: #fff3cf; --terrain-color: #fff3cf; }
+.landing-map-marker text { fill: #14272b; text-anchor: middle; dominant-baseline: central; font-weight: 800; }
+.flight-route-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; padding: 0; margin: 12px 0 0; list-style: none; color: var(--muted); font-size: .69rem; }
+.flight-route-legend li { display: flex; align-items: center; gap: 5px; }
+.flight-route-legend li span { width: 8px; height: 8px; border-radius: 2px; background: var(--terrain-color); }
 
-.map-terrain-mountain { --terrain-color: #aea393; }
-.map-terrain-forest { --terrain-color: #60a17b; }
-.map-terrain-canyon { --terrain-color: #cb9369; }
-.map-terrain-plain { --terrain-color: #9fb67a; }
-.map-terrain-sea { --terrain-color: #244d65; }
-
-.flight-route-map path {
-  fill: var(--terrain-color);
-}
-
-.flight-route-map [data-elevation] {
-  filter: saturate(var(--survey-reveal, 0));
-}
-
-.flight-route-map [data-elevation="0"] {
-  opacity: 0.68;
-}
-
-.flight-route-map [data-elevation="1"] {
-  opacity: 0.85;
-}
-
-.flight-route-map .flight-route-line {
-  fill: none;
-  stroke: #dbfaff;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.flight-route-start {
-  fill: #9ef5b7;
-  stroke: #172a38;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.flight-route-end {
-  fill: #ffe082;
-  stroke: #172a38;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.recommended-map-marker {
-  fill: none;
-  stroke: #80e6ff;
-  stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
-}
-
-.landing-map-marker circle {
-  fill: #e1e8ff;
-  stroke: #172a38;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.landing-map-marker text {
-  fill: #172a38;
-  text-anchor: middle;
-  dominant-baseline: central;
-  font-weight: 800;
-}
-
-.result-map-card .flight-route-map {
-  height: clamp(160px, 29vh, 260px);
-}
-
-.flight-route-legend {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px 14px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-  color: #b5c5cf;
-  font-size: 11px;
-}
-
-.flight-route-legend li {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.flight-route-legend li span {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  background: var(--terrain-color);
-}
-
-.route-legend-start { --terrain-color: #9ef5b7; }
-.route-legend-end { --terrain-color: #ffe082; }
-.route-legend-landing { --terrain-color: #e1e8ff; }
-
-.stat-row small {
-  color: #91a8b7;
-  font-size: 10px;
-}
-
-/* 중앙 안내 */
-
-.ring-direction,
-.ring-feedback {
-  position: absolute;
-  left: 50%;
-  z-index: 8;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
-.ring-direction {
-  top: 68%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 11px;
-  border-radius: 8px;
-  background: #172a38;
-  color: #8ce7ff;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.ring-direction[hidden] {
-  display: none;
-}
-
-.landing-direction {
-  color: #e1e8ff;
-  border: 1px solid #a1b8df;
-}
-
-.guide-details {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 3px 8px;
-  line-height: 1.25;
-}
-
-.guide-details span {
-  color: #d1e1ed;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.guide-details .guide-warning {
-  color: #ffe082;
-}
-
-.ring-direction-arrow {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  transform: rotate(var(--ring-angle, 0rad));
-  font-size: 20px;
-  line-height: 1;
-}
-
-.guide-in-view {
-  display: none;
-  font-size: 18px;
-  line-height: 1;
-}
-
-.ring-direction[data-in-view="true"] .ring-direction-arrow {
-  display: none;
-}
-
-.ring-direction[data-in-view="true"] .guide-in-view {
-  display: block;
-}
-
-.ring-feedback {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  top: 15%;
-  width: min(240px, 80%);
-  text-align: center;
-}
-
-.ring-feedback-card {
-  display: inline-grid;
-  gap: 3px;
-  padding: 8px 15px;
-  border-radius: 9px;
-  background: #172a38;
-  color: #ffffff;
-  font-size: 12px;
-  animation: ring-feedback 3s both;
-}
-
-.ring-feedback-card strong {
-  color: #9ef5b7;
-  font-size: 20px;
-}
-
-.recovery-feedback strong {
-  color: #ffe082;
-  font-size: 14px;
-}
-
-.boundary-feedback {
-  padding: 6px 10px;
-  border-radius: 7px;
-  background: #3e2f25;
-  color: #ffdc9a;
-  font-size: 11px;
-}
-
-@keyframes ring-feedback {
-  0%, 80% { opacity: 1; visibility: visible; }
-  100% { opacity: 0; visibility: hidden; }
-}
-
-/* 하단 조작 안내 */
-
-.game-footer {
-  position: absolute;
-  z-index: 10;
-  right: var(--hud-edge);
-  bottom: 16px;
-  left: var(--hud-edge);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.control-guide {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 12px 17px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  background: rgba(13, 30, 42, 0.7);
-}
-
-.control-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #d1dce3;
-  font-size: 10px;
-}
-
-.control-keys {
-  display: flex;
-  gap: 3px;
-}
-
-.key {
-  display: grid;
-  width: 23px;
-  height: 23px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 4px;
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.finish-button {
-  padding: 12px 17px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 7px;
-  color: #ffffff;
-  background: rgba(13, 30, 42, 0.7);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.finish-button:hover {
-  background: #142c3d;
-}
-
-/* 일시정지 팝업 */
-
-.pause-modal::backdrop {
-  background: rgba(6, 22, 34, 0.65);
-  backdrop-filter: blur(5px);
-}
+.ring-direction, .ring-feedback { position: absolute; left: 50%; transform: translateX(-50%); z-index: 1; pointer-events: none; }
+.ring-direction { bottom: 18%; display: flex; align-items: center; gap: 9px; padding: 6px 12px; border: 1px solid var(--edge); border-radius: 24px; background: #14272bf5; color: var(--mint); }
+.ring-direction[hidden] { display: none; }
+.ring-direction-arrow { display: inline-block; transform: rotate(var(--ring-angle, 0rad)); font-size: 1.2rem; }
+.guide-in-view, .ring-direction[data-in-view="true"] .ring-direction-arrow { display: none; }
+.ring-direction[data-in-view="true"] .guide-in-view { display: block; }
+.guide-details { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; font-size: .75rem; }
+.guide-details span { color: var(--muted); font-size: .68rem; white-space: nowrap; }
+.landing-direction, .guide-details .guide-warning { color: var(--amber); }
+.ring-feedback { top: 15%; display: grid; gap: 4px; justify-items: center; text-align: center; }
+.ring-feedback-card, .boundary-feedback { padding: 6px 10px; border-radius: 8px; background: var(--panel); font-size: .72rem; }
+.ring-feedback-card { display: grid; gap: 2px; animation: fade-feedback 3s both; }
+.ring-feedback-card strong { color: var(--mint); font-size: 1rem; }
+.recovery-feedback strong, .boundary-feedback { color: var(--amber); }
+@keyframes fade-feedback { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+.game-footer { position: absolute; z-index: 3; inset: auto var(--hud-edge) 12px; display: flex; justify-content: space-between; align-items: end; gap: 8px; }
+.control-guide { flex-wrap: wrap; gap: 5px 12px; padding: 7px 10px; border: 1px solid var(--edge); border-radius: 8px; background: #14272bf0; }
+.control-item { gap: 5px; color: var(--muted); font-size: .68rem; white-space: nowrap; }
+.control-keys { gap: 3px; }
+.key { display: grid; min-width: 19px; height: 20px; place-items: center; border: 1px solid var(--edge); border-radius: 4px; color: var(--ink); font-size: .72rem; }
+.finish-button { white-space: nowrap; }
 
 .pause-modal {
-  width: min(390px, calc(100% - 32px));
-  max-height: calc(100dvh - 32px);
-  margin: auto;
-  padding: 26px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 13px;
-  color: #ffffff;
-  background: #172e3e;
-  text-align: center;
-  line-height: 1.5;
+  width: min(440px, calc(100% - 28px)); max-height: calc(100dvh - 28px); margin: auto;
+  padding: clamp(18px, 4vw, 32px); border: 1px solid var(--edge); border-radius: 16px;
+  background: var(--panel); color: var(--ink); text-align: left; box-shadow: 0 20px 100px #061011ae;
 }
+.pause-modal::backdrop { background: #08161bbe; backdrop-filter: blur(5px); }
+.pause-modal h2 { font-size: clamp(1.35rem, 4vw, 1.75rem); }
+.pause-modal p { margin: 12px 0 16px; color: var(--muted); font-size: .82rem; line-height: 1.55; }
+.pause-modal > button { display: block; width: 100%; margin-top: 8px; }
+.storm-repair:has(.repair-steps) { border-color: #c19456; }
+.repair-steps, .repair-terminals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.repair-steps { margin: 0; padding: 0; list-style: none; }
+.repair-steps li { text-align: center; border-bottom: 2px solid var(--edge); padding: 5px 2px; color: var(--muted); font-size: .72rem; }
+.repair-steps li[data-connected="true"] { border-color: var(--mint); color: var(--mint); }
+.repair-terminals button { min-height: 66px; padding: 5px; }
+.repair-terminals button span { display: block; color: var(--amber); font-size: 1.25rem; }
 
-.modal-eyebrow {
-  color: #a9d4e7;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 2.5px;
+.result-screen { min-height: 100dvh; padding: clamp(22px, 6vh, 58px) 16px; background: radial-gradient(ellipse at 50% 0%, #294748, #101e21 72%); }
+.result-content { width: min(900px, 100%); margin: auto; }
+.result-eyebrow { color: var(--mint); font-size: .75rem; }
+.result-content h1 { margin: 4px 0; font-size: clamp(2rem, 6vw, 3.6rem); }
+.result-note { margin-bottom: 20px; color: var(--muted); font-size: .85rem; }
+.result-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 14px; }
+.result-score-card, .result-map-card { padding: clamp(14px, 3vw, 26px); border: 1px solid var(--edge); border-radius: 13px; background: var(--panel); }
+.result-score { font-size: clamp(2.3rem, 6vw, 3.7rem); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.result-score span { margin-left: 7px; font-size: .72rem; color: var(--muted); }
+.result-score-breakdown { display: grid; gap: 4px; margin: 12px 0; }
+.result-score-breakdown dd { margin: 0; color: var(--ink); }
+.result-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.result-stats > div { display: grid; gap: 4px; }
+.result-stats span { font-size: .64rem; color: var(--muted); }
+.result-stats strong { font-size: .94rem; }
+.result-stats small { font-size: .61rem; }
+.result-map-card .flight-route-map { height: clamp(165px, 33vh, 300px); }
+.result-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; }
+
+@media (max-width: 650px) {
+  .start-layout, .result-grid { grid-template-columns: minmax(0, 1fr); }
+  .start-content h1 br { display: none; }
+  .start-chart .flight-route-map { max-height: 280px; }
+  .game-header { padding-top: 8px; }
+  .game-header .brand { font-size: .83rem; }
+  .hud-panel { top: 59px; width: min(170px, calc(50% - var(--hud-edge) - 4px)); padding: 8px; }
+  .flight-terrain-list, .flight-objective, .stat-row { font-size: .63rem; }
+  .flight-objective strong { font-size: .72rem; }
+  .ring-feedback { top: auto; bottom: 28%; width: min(225px, 85%); }
+  .guide-details { font-size: .7rem; }
+  .game-footer .control-guide { gap: 3px 6px; padding: 4px; }
+  .game-footer .control-item { font-size: .56rem; }
+  .game-footer .key { min-width: 15px; height: 16px; font-size: .63rem; }
+  .finish-button { padding: 5px 7px; font-size: .67rem; }
 }
-
-.pause-modal h2 {
-  margin: 8px 0 0;
-  color: #ffffff;
-  font-size: 24px;
-  font-weight: 800;
-}
-
-.pause-modal .score-rules {
-  margin: 14px 0 20px;
-  padding: 8px;
-  border-radius: 8px;
-  background: #102534;
-  color: #bed0dc;
-  font-size: 12px;
-}
-
-.modal-primary {
-  width: 100%;
-}
-
-.secondary-button {
-  width: 100%;
-  min-height: 52px;
-  margin-top: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 7px;
-  color: #ffffff;
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
-  transition: background 0.2s;
-}
-
-.secondary-button:hover {
-  background: rgba(255, 255, 255, 0.09);
-}
-
-.text-button {
-  margin-top: 23px;
-  border: 0;
-  color: #a8bac5;
-  background: transparent;
-  font-size: 11px;
-}
-
-.text-button:hover {
-  color: #ffffff;
-}
-
-/* 결과 화면 */
-
-.result-screen {
-  display: grid;
-  place-items: center;
-  height: auto;
-  min-height: 100vh;
-  padding: clamp(24px, 5vh, 56px) 0;
-  background: radial-gradient(ellipse at 50% 0%, #284b61, #172a38 65%);
-  line-height: 1.4;
-}
-
-.result-content {
-  width: min(810px, calc(100% - 32px));
-  text-align: center;
-}
-
-.result-eyebrow {
-  justify-content: center;
-  font-size: 9px;
-}
-
-.result-eyebrow span {
-  width: 25px;
-  height: 1px;
-  background: #a9d6e9;
-}
-
-.result-content h1 {
-  margin: 10px 0 6px;
-  color: #ffffff;
-  font-size: clamp(27px, 5vw, 42px);
-  font-weight: 800;
-}
-
-.result-note {
-  margin: 0 0 20px;
-  color: #bed0dc;
-  font-size: 12px;
-}
-
-.result-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 14px;
-}
-
-.result-score-card,
-.result-map-card {
-  padding: clamp(14px, 3vw, 24px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
-  color: #ffffff;
-  background: #20394a;
-}
-
-.result-map-card .flight-route-heading {
-  margin-bottom: 10px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.result-card-label {
-  color: #a9c4d2;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 2px;
-}
-
-h2.result-card-label {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0;
-}
-
-.result-score {
-  margin-top: 3px;
-  font-size: clamp(38px, 6vw, 54px);
-  font-weight: 800;
-  letter-spacing: -2px;
-  font-variant-numeric: tabular-nums;
-}
-
-.result-score span {
-  margin-left: 8px;
-  font-size: 12px;
-  letter-spacing: 1px;
-}
-
-.storm-active .flight-objective strong {
-  color: #ffd084;
-}
-
-.storm-active .flight-objective {
-  border-color: #b78044;
-}
-
-.repair-steps,
-.repair-terminals {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-}
-
-.repair-steps {
-  padding: 0;
-  list-style: none;
-}
-
-.repair-steps li {
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #102534;
-}
-
-.repair-steps [data-connected="true"] {
-  color: #a9e6d0;
-  background: #235249;
-}
-
-.repair-terminals button {
-  width: auto;
-  min-width: 70px;
-  margin: 0;
-  padding: 8px;
-}
-
-.repair-terminals button span {
-  display: block;
-}
-
-.storm-repair button:disabled,
-.storm-active button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.result-score-breakdown {
-  display: grid;
-  gap: 4px;
-  margin: 8px 0 0;
-  color: #bed0dc;
-  font-size: 12px;
-}
-
-.result-score-breakdown div {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.result-score-breakdown dd {
-  margin: 0;
-  color: #fff;
-  font-variant-numeric: tabular-nums;
-}
-
-.result-divider {
-  height: 1px;
-  margin: 14px 0;
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.result-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.result-stats > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.result-stats > div + div {
-  border-left: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.result-stats span {
-  color: #a9c4d2;
-  font-size: 10px;
-}
-
-.result-stats strong {
-  font-size: 20px;
-}
-
-.result-stats small {
-  margin-left: 3px;
-  font-size: 11px;
-}
-
-.terrain-results {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.terrain-results li {
-  display: flex;
-  justify-content: space-between;
-  gap: 5px;
-  padding: 5px 9px;
-  border-radius: 6px;
-  background: #172a38;
-  font-size: 12px;
-}
-
-.terrain-complete {
-  color: #9ef5b7;
-}
-
-.result-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 9px;
-  margin-top: 18px;
-}
-
-.result-actions button {
-  width: min(100%, 190px);
-  margin: 0;
-}
-
-/* 반응형 */
-
-@media (max-width: 900px) {
-  .start-content {
-    left: 8%;
-  }
-
-  .hud-panel {
-    width: 195px;
-    padding: 16px;
-  }
-
-  .control-guide {
-    gap: 10px;
-    padding: 10px;
-  }
-
-  .control-item {
-    gap: 5px;
-  }
-}
-
-@media (max-width: 600px) {
-  .start-screen,
-  .game-screen,
-  .result-screen {
-    min-height: 600px;
-  }
-
-  .top-header,
-  .game-header {
-    padding: 13px var(--hud-edge, 16px) 18px;
-  }
-
-  .brand {
-    font-size: 13px;
-  }
-
-  .version-label {
-    font-size: 8px;
-  }
-
-  .start-content {
-    top: 47%;
-    left: 8%;
-    width: 84%;
-  }
-
-  .start-content h1 {
-    font-size: clamp(64px, 17vw, 90px);
-    letter-spacing: -4px;
-  }
-
-  .start-description {
-    font-size: 12px;
-  }
-
-  .flight-status {
-    position: static;
-    transform: none;
-    gap: 4px;
-    padding: 5px 7px;
-    font-size: 8px;
-    letter-spacing: 0.5px;
-  }
-
-  .pause-button {
-    padding: 9px 11px;
-    font-size: 10px;
-  }
-
-  .hud-panel {
-    top: 72px;
-    width: min(162px, calc(50% - var(--hud-edge) - 4px));
-    padding: 9px;
-  }
-
-  .panel-label {
-    font-size: 8px;
-  }
-
-  .exploration-number {
-    font-size: 34px;
-  }
-
-  .score-number {
-    font-size: 22px;
-  }
-
-  .score-number small {
-    display: block;
-  }
-
-  .speed-number {
-    font-size: 16px;
-  }
-
-  .stat-row {
-    font-size: 9px;
-  }
-
-  .stat-row strong {
-    font-size: 10px;
-  }
-
-  .flight-objective {
-    font-size: 8px;
-  }
-
-  .flight-terrain-list {
-    font-size: 8px;
-  }
-
-  .ring-direction {
-    top: auto;
-    bottom: 109px;
-  }
-
-  .ring-feedback {
-    top: auto;
-    bottom: 151px;
-  }
-
-  .game-footer {
-    bottom: 12px;
-    gap: 6px;
-  }
-
-  .control-guide {
-    display: grid;
-    grid-template-columns: repeat(2, auto);
-    gap: 4px 8px;
-    padding: 6px;
-  }
-
-  .control-item {
-    font-size: 8px;
-  }
-
-  .control-item .key {
-    width: 16px;
-    height: 16px;
-    font-size: 9px;
-  }
-
-  .finish-button {
-    padding: 8px;
-    font-size: 10px;
-  }
-
-  .result-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .result-stats strong {
-    font-size: 16px;
-  }
-
-  .start-bottom {
-    right: 20px;
-    left: 20px;
-    font-size: 7px;
-    letter-spacing: 1px;
-  }
+@media (max-height: 510px) {
+  .hud-panel { max-height: calc(100% - 144px); overflow: auto; }
+  .ring-feedback { top: auto; bottom: 30%; }
 }
