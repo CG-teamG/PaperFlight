@@ -300,6 +300,40 @@ function heightAt(x, z) {
   return h;
 }
 
+let terrainMap;
+
+export function getTerrainMap() {
+  if (terrainMap) return terrainMap;
+
+  const cellSize = ZONE_SIZE / 20;
+  const paths = new Map();
+  for (let z = -HALF; z < HALF; z += cellSize) {
+    for (let x = -HALF; x < HALF; x += cellSize) {
+      const centerX = x + cellSize / 2;
+      const centerZ = z + cellSize / 2;
+      const height = heightAt(centerX, centerZ);
+      if (height <= SEA_LEVEL) continue;
+
+      const zoneId = zoneIndexAt(centerX, centerZ) + 1;
+      const zone = ZONE_TYPES[zoneId - 1];
+      const type = zone === "sea" ? "plain" : zone;
+      const elevation = height >= 100 ? 2 : height >= 35 ? 1 : 0;
+      const key = `${zoneId}-${elevation}`;
+      if (!paths.has(key)) paths.set(key, { type, zoneId, elevation, cells: [] });
+      paths.get(key).cells.push(`M${x},${z}h${cellSize}v${cellSize}h-${cellSize}z`);
+    }
+  }
+
+  terrainMap = Array.from(paths, ([key, { type, zoneId, elevation, cells }]) => ({
+    key,
+    type,
+    zoneId,
+    elevation,
+    shape: cells.join(""),
+  }));
+  return terrainMap;
+}
+
 // 지형 색상 (높이 + 지형 종류 + 경사)
 function groundColor(THREE, h, slope, type, x, z, out, tmp) {
   const patch = fbm(x * 0.025 + 4.4, z * 0.025 + 9.9, 3); // 큰 얼룩 (0~1)
@@ -399,7 +433,7 @@ function mulberry32(a) {
 // 렌더러 설정 헬퍼: 그림자와 색 표현을 켠다 (GameScene에서 1회 호출)
 export function configureRenderer(THREE, renderer) {
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
@@ -1135,7 +1169,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     return m;
   }
 
-  const RING_COLORS = { idle: 0xffa726, active: 0xffe082, passed: 0x5fe08a };
+  const RING_COLORS = { idle: 0xffa726, active: 0x58d8ff, passed: 0x5fe08a };
   const rings = [];
   // const ringPositions = RING_PATH.map(
   //   (r) => new THREE.Vector3(r.x, groundMax(r.x, r.z, 60) + r.clearance, r.z),
@@ -1476,13 +1510,14 @@ export function createEnvironment(THREE, scene, options = {}) {
   );
   const start = { position: startPos, direction: new THREE.Vector3(0, 0, 1) }; // 방향은 buildRings()에서 갱신
 
-  // RingSystem에 넘길 링 데이터: { id, position, radius, normal }
+  // 링 판정과 탐험 UI에 넘길 데이터
   const toXYZ = (v) => ({ x: v.x, y: v.y, z: v.z });
   function getRingData() {
     return rings.map((r) => ({
       id: r.id,
+      terrain: r.terrain,
       position: toXYZ(r.position),
-      radius: r.radius,
+      radius: r.innerRadius,
       normal: toXYZ(r.normal),
     }));
   }
@@ -1624,7 +1659,6 @@ export function createEnvironment(THREE, scene, options = {}) {
     for (const r of rings) {
       if (r.state === "active") {
         r._haloMat.opacity = 0.3 + 0.2 * Math.sin(elapsed * 5);
-        r.mesh.scale.setScalar(1 + 0.04 * Math.sin(elapsed * 5));
       }
       if (r.pop < 1) {
         // 통과 시 팝 애니메이션
@@ -1684,6 +1718,12 @@ export function createEnvironment(THREE, scene, options = {}) {
     dispose,
     reset,
     getGroundHeight: (x, z) => Math.max(heightAt(x, z), SEA_LEVEL), // 지면 충돌 판정용 (바다는 수면 높이)
+    setStorm(active) {
+      scene.fog.near = active ? 100 : 500;
+      scene.fog.far = active ? 850 : 3000;
+      scene.fog.color.copy(horizonColor);
+      if (active) scene.fog.color.multiplyScalar(0.55);
+    },
     setWind: (x, z) => {
       wind.x = x;
       wind.z = z;

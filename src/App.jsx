@@ -17,8 +17,30 @@
  * ============================================================
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
+import StormRepair from './StormRepair.jsx'
+import { getTerrainMap, MAP_SIZE } from './game/Environment.js'
+import { MAX_FLIGHT_SPEED } from './game/FlightController.js'
+import { EMPTY_FLIGHT_PROGRESS, LANDING_BONUS_POINTS } from './game/FlightProgress.js'
+import { LANDING_MAX_SPEED } from './game/FlightRules.js'
+import { createGameScene } from './game/GameScene.js'
+import { BASE_RING_POINTS } from './game/RingSystem.js'
 import './App.css'
+
+const TERRAIN_NAMES = { mountain: '산', forest: '숲', canyon: '협곡', sea: '바다' }
+const MAP_TERRAIN_NAMES = { ...TERRAIN_NAMES, plain: '평원' }
+const FLIGHT_CONTROLS = [
+  { keys: ['↑', '↓'], label: '상승·하강' },
+  { keys: ['←', '→'], label: '좌우 회전' },
+  { keys: ['W', 'S'], label: '가속·감속' },
+]
+const RECOVERY_MESSAGES = {
+  terrain: '지형이나 수면에 닿았어요.',
+  speed: `착륙할 때는 ${LANDING_MAX_SPEED} u/s 이하로 감속하세요.`,
+  angle: '착륙장에는 더 완만한 각도로 접근하세요.',
+  'pad-edge': '착륙장 중앙을 향해 위에서 내려오세요.',
+}
 
 // 초 단위 시간을 00:00 형식으로 변환
 function formatTime(seconds) {
@@ -26,6 +48,71 @@ function formatTime(seconds) {
   const remainingSeconds = seconds % 60
 
   return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
+}
+
+function FlightRoute({ path, distance, discovered = [], landingPad, recommendedRing, showLegend = false }) {
+  const halfMap = MAP_SIZE / 2
+  const xs = path.map(({ x }) => x)
+  const zs = path.map(({ z }) => z)
+  const left = Math.min(-halfMap, ...xs)
+  const right = Math.max(halfMap, ...xs)
+  const top = Math.min(-halfMap, ...zs)
+  const bottom = Math.max(halfMap, ...zs)
+  const width = right - left
+  const height = bottom - top
+  const radius = Math.max(width, height) * 0.014
+  const padding = radius * 2
+  const start = path[0]
+  const end = path.at(-1)
+  const terrain = getTerrainMap()
+  const route = path.map(({ x, z, breakBefore }, index) => `${index === 0 || breakBefore ? 'M' : 'L'}${x},${z}`).join(' ')
+
+  return (
+    <div className="flight-route">
+      <div className="flight-route-heading">
+        <span>비행 경로</span>
+        <strong>{Math.round(distance).toLocaleString()} <small>u</small></strong>
+      </div>
+      <svg
+        className="flight-route-map"
+        viewBox={`${left - padding} ${top - padding} ${width + padding * 2} ${height + padding * 2}`}
+        role="img"
+        aria-label="지형 지도 위에 표시한 비행 경로"
+      >
+        {terrain.map(({ key, type, zoneId, elevation, shape }) => (
+          <path
+            key={key}
+            className={`map-terrain-${type}`}
+            data-elevation={elevation}
+            style={{ '--survey-reveal': Number(discovered.includes(zoneId)) }}
+            d={shape}
+          />
+        ))}
+        <path className="flight-route-line" d={route} />
+        {recommendedRing && (
+          <circle className="recommended-map-marker" cx={recommendedRing.x} cy={recommendedRing.z} r={radius * 1.6} />
+        )}
+        {landingPad && (
+          <g className="landing-map-marker">
+            <circle cx={landingPad.x} cy={landingPad.z} r={radius * 3.5} />
+            <text x={landingPad.x} y={landingPad.z} fontSize={radius * 5}>H</text>
+          </g>
+        )}
+        {start && <circle className="flight-route-start" cx={start.x} cy={start.z} r={radius} />}
+        {end && <circle className="flight-route-end" cx={end.x} cy={end.z} r={radius * 1.25} />}
+      </svg>
+      {showLegend && (
+        <ul className="flight-route-legend">
+          <li><span className="route-legend-start" />출발</li>
+          <li><span className="route-legend-end" />도착</li>
+          {landingPad && <li><span className="route-legend-landing" />착륙장</li>}
+          {Object.entries(MAP_TERRAIN_NAMES).map(([type, name]) => (
+            <li key={type}><span className={`map-terrain-${type}`} />{name}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 // 공통 로고
@@ -60,9 +147,9 @@ function StartScreen({ onStart }) {
         </h1>
 
         <p className="start-description">
-          종이비행기를 타고 미지의 세계를 탐험하세요.
+          섬을 자유롭게 탐색하고 비행 경로를 남기세요.
           <br />
-          하늘을 가로지르며 새로운 지역을 발견해 보세요.
+          폭풍 경보가 뜨면 H에 착륙해 방재 장치를 복구하세요.
         </p>
 
         <button className="primary-button start-button" onClick={onStart}>
@@ -72,7 +159,7 @@ function StartScreen({ onStart }) {
 
         <div className="start-hint">
           <span className="hint-dot" />
-          준비되었다면 하늘로 날아오르세요
+          방향키로 조종 · W/S로 속도 조절
         </div>
       </section>
 
@@ -85,23 +172,25 @@ function StartScreen({ onStart }) {
 }
 
 // 게임 플레이 화면
-function PlayingScreen({ time, onPause, onFinish, isPaused = false }) {
-  // UI 확인용 임시 데이터
-  const score = 300
-  const passedRings = 3
-  const exploration = 42
-  const discovered = 7
-  const totalRegions = 16
+function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFinish, onToggleLandingGuide, isPaused }) {
+  const {
+    score, passedRings, totalRings, discovered = [], totalRegions = 0, storm,
+    terrains, award, speed, distance, path, recoveries, landingPad,
+    elapsed, guidance, recoveryReason, outsideSurveyArea,
+  } = progress
+  const surveyProgress = totalRegions ? discovered.length / totalRegions * 100 : 0
+  const guidingLanding = guidance?.kind === 'landing'
 
   return (
-    <main className="game-screen">
+    <main className={storm ? 'game-screen storm-active' : 'game-screen'}>
+      <div className="flight-scene" ref={sceneContainer} />
       {/* 상단 UI */}
       <header className="game-header">
         <Logo />
 
         <div className={`flight-status ${isPaused ? 'paused' : ''}`}>
           <span className="status-dot" />
-          {isPaused ? 'PAUSED' : 'IN FLIGHT'}
+          {isPaused ? '일시정지' : '비행 중'}
         </div>
 
         <button className="pause-button" onClick={onPause}>
@@ -112,84 +201,129 @@ function PlayingScreen({ time, onPause, onFinish, isPaused = false }) {
 
       {/* 좌측 탐험 정보 */}
       <aside className="hud-panel exploration-panel">
-        <div className="panel-label">EXPLORATION</div>
+        <div className="panel-label">발견 구역</div>
 
         <div className="exploration-number">
-          {exploration}<span>%</span>
+          {discovered.length}<span> / {totalRegions}</span>
         </div>
 
-        <div className="progress-track">
+        <div
+          className="progress-track" role="progressbar" aria-label="발견 구역"
+          aria-valuenow={discovered.length} aria-valuemax={totalRegions || 1}
+        >
           <div
             className="progress-fill"
-            style={{ width: `${exploration}%` }}
+            style={{ width: `${surveyProgress}%` }}
           />
         </div>
 
-        <div className="panel-bottom">
-          <span>발견한 지역</span>
-          <strong>{discovered} / {totalRegions}</strong>
+        <div className="flight-objective">
+          {guidingLanding ? (
+            <>
+              <strong>{storm ? '폭풍 경보 · 비상 귀환' : '귀환 안내'}</strong>
+              <span>H에서 {LANDING_MAX_SPEED} u/s 이하로 완만하게 하강하세요.</span>
+              {storm && <span>발견과 링 점수는 방재 장치를 복구한 뒤 다시 기록돼요.</span>}
+            </>
+          ) : (
+            <>
+              <strong>자유 탐색</strong>
+              <span>새 구역 위를 지나면 지도에 색이 나타나요.</span>
+            </>
+          )}
+          {landingPad && !storm && passedRings < totalRings && (
+            <button className="landing-guide-button" onClick={onToggleLandingGuide}>
+              {guidingLanding ? '추천 링 안내' : 'H 착륙장 안내'}
+            </button>
+          )}
         </div>
-
-        <div className="panel-divider" />
-
-        <div className="region-status">
-          <span className="region-indicator" />
-          새로운 지역 탐험 중
-        </div>
+        <ul className="flight-terrain-list" aria-label="지형별 링 통과">
+          {terrains.map(({ type, passed, total }) => (
+            <li key={type} className={passed === total ? 'terrain-complete' : undefined}>
+              <span>{TERRAIN_NAMES[type]}</span><strong>{passed}/{total}</strong>
+            </li>
+          ))}
+        </ul>
       </aside>
 
       {/* 우측 점수 정보 */}
       <aside className="hud-panel score-panel">
-        <div className="panel-label">FLIGHT SCORE</div>
-
-        <div className="score-number">
-          {score.toLocaleString()}
-          <span>PTS</span>
+        <div className="score-readout">
+          <div>
+            <div className="panel-label">FLIGHT SCORE</div>
+            <div className="score-number">{score.toLocaleString()} <small>PTS</small></div>
+          </div>
+          <div className="speed-readout">
+            <div className="panel-label">속도</div>
+            <div className="speed-number">{Math.floor(speed)} <small>u/s</small></div>
+            <meter className="speed-meter" min="0" max={MAX_FLIGHT_SPEED} value={speed} aria-label="현재 비행 속도" />
+          </div>
         </div>
 
         <div className="panel-divider" />
 
         <div className="stat-row">
           <span>통과한 링</span>
-          <strong>{passedRings} <small>/ 14</small></strong>
+          <strong>{passedRings} <small>/ {totalRings}</small></strong>
         </div>
 
         <div className="stat-row">
           <span>비행 시간</span>
-          <strong>{formatTime(time)}</strong>
+          <strong>{formatTime(elapsed)}</strong>
         </div>
+        <div className="panel-divider" />
+        <FlightRoute
+          path={path} distance={distance} discovered={discovered} landingPad={landingPad}
+          recommendedRing={guidance?.kind === 'ring' ? guidance.position : null}
+        />
       </aside>
 
-      {/* 중앙 안내 */}
-      <div className="center-message">
-        <span />
-        KEEP EXPLORING
-        <span />
+      <div className={`ring-direction${guidingLanding ? ' landing-direction' : ''}`} ref={ringDirection} hidden>
+        <span className="ring-direction-arrow" aria-hidden="true">↑</span>
+        <span className="guide-in-view" aria-hidden="true">◎</span>
+        <div className="guide-details">
+          <strong>{guidingLanding ? 'H 착륙장' : `${TERRAIN_NAMES[guidance?.terrain] ?? ''} 추천 링`}</strong>
+          {guidance && <span>{Math.round(guidance.distance).toLocaleString()} u</span>}
+          {guidingLanding && (
+            <span className={speed > LANDING_MAX_SPEED ? 'guide-warning' : ''}>
+              {speed > LANDING_MAX_SPEED ? 'S로 감속' : `착륙장 기준 고도 ${guidance.altitude} u`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="ring-feedback" role="status" aria-atomic="true">
+        {outsideSurveyArea && <div className="boundary-feedback">조사 구역 밖이에요. 지도의 추천 링이나 H로 돌아오세요.</div>}
+        {recoveries > 0 && (
+          <div className="ring-feedback-card recovery-feedback" key={`recovery-${recoveries}`}>
+            <strong>출발 지점으로 복귀</strong>
+            <span>{RECOVERY_MESSAGES[recoveryReason]} 조사 기록은 유지돼요.</span>
+          </div>
+        )}
+        {award && (
+          <div className="ring-feedback-card" key={passedRings}>
+            <strong>+{award.points}점</strong>
+            {terrains.filter(({ type }) => award.terrains.includes(type)).map(({ type, passed, total }) => (
+              <span key={type}>{TERRAIN_NAMES[type]} 조사 {passed}/{total}</span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 하단 조작 안내 */}
       <footer className="game-footer">
         <div className="control-guide">
-          <div className="control-item">
-            <span className="key">W</span>
-            <span>상승</span>
-          </div>
-          <div className="control-item">
-            <span className="key">S</span>
-            <span>하강</span>
-          </div>
-          <div className="control-item">
-            <span className="key">A</span>
-            <span>좌회전</span>
-          </div>
-          <div className="control-item">
-            <span className="key">D</span>
-            <span>우회전</span>
-          </div>
+          {FLIGHT_CONTROLS.map(({ keys, label }) => (
+            <div className="control-item" key={label}>
+              <span className="control-keys">
+                {keys.map((key) => <kbd className="key" key={key}>{key}</kbd>)}
+              </span>
+              <span>{label}</span>
+            </div>
+          ))}
         </div>
 
-        <button className="finish-button" onClick={onFinish}>
-          비행 종료하기 →
+        <button className="finish-button" onClick={onFinish} disabled={storm}>
+          비행 종료 →
         </button>
       </footer>
     </main>
@@ -197,79 +331,126 @@ function PlayingScreen({ time, onPause, onFinish, isPaused = false }) {
 }
 
 // 일시정지 팝업
-function PauseScreen({ onResume, onRestart, onHome }) {
+function PauseScreen({ onResume, onRestart, onHome, storm }) {
+  const modal = useRef(null)
+
+  useEffect(() => {
+    const dialog = modal.current
+    dialog.showModal()
+    return () => dialog.close()
+  }, [])
+
   return (
-    <div className="modal-overlay">
-      <div className="pause-modal">
-        <div className="modal-eyebrow">FLIGHT PAUSED</div>
-        <div className="modal-symbol">Ⅱ</div>
+    <dialog
+      className="pause-modal"
+      ref={modal}
+      aria-labelledby="pause-title"
+      onCancel={(event) => {
+        event.preventDefault()
+        onResume()
+      }}
+    >
+      <div className="modal-eyebrow">FLIGHT PAUSED</div>
+      <h2 id="pause-title">비행 일시정지</h2>
+      <p className="score-rules">
+        링 통과 {BASE_RING_POINTS}점 · H 착륙 성공 +{LANDING_BONUS_POINTS}점
+      </p>
 
-        <h2>잠시 쉬어가세요.</h2>
-        <p>비행이 일시정지되었습니다.</p>
+      <button className="primary-button modal-primary" onClick={onResume}>
+        이어서 비행하기 <span>→</span>
+      </button>
 
-        <button className="primary-button modal-primary" onClick={onResume}>
-          이어서 비행하기 <span>→</span>
-        </button>
+      <button className="secondary-button" onClick={onRestart} disabled={storm}>
+        처음부터 다시 시작
+      </button>
 
-        <button className="secondary-button" onClick={onRestart}>
-          처음부터 다시 시작
-        </button>
-
-        <button className="text-button" onClick={onHome}>
-          메인 화면으로 돌아가기
-        </button>
-      </div>
-    </div>
+      <button className="text-button" onClick={onHome} disabled={storm}>
+        메인 화면으로 돌아가기
+      </button>
+    </dialog>
   )
 }
 
 // 결과 화면
-function ResultScreen({ time, onRestart, onHome }) {
-  const score = 300
-  const passedRings = 3
-  const exploration = 42
+function ResultScreen({ progress, onRestart, onHome }) {
+  const {
+    score, ringPoints, landingPoints, passedRings, discovered = [], totalRegions, terrains, distance,
+    path, recoveries, landingPad, outcome, elapsed,
+  } = progress
+  const landed = outcome === 'landed'
 
   return (
     <main className="result-screen">
       <div className="result-content">
         <div className="result-eyebrow">
           <span />
-          FLIGHT COMPLETED
+          {landed ? '종료 사유 · 안전 착륙' : '종료 사유 · 직접 종료'}
           <span />
         </div>
 
-        <h1>비행을 완료했어요!</h1>
-        <p className="result-description">
-          새로운 세계를 향한 멋진 비행이었습니다.
+        <h1>비행 기록</h1>
+        <p className="result-note">
+          {landed ? '착륙장에서 이번 탐색을 마쳤어요.' : '이번 자유 비행을 마쳤어요.'}
+          {progress.stormsResolved > 0 && ` 폭풍 대응 ${progress.stormsResolved}회 성공.`}
         </p>
 
-        <section className="result-score-card">
-          <span className="result-card-label">TOTAL SCORE</span>
+        <div className="result-grid">
+          <section className="result-score-card">
+            <span className="result-card-label">TOTAL SCORE</span>
 
-          <div className="result-score">
-            {score.toLocaleString()}
-            <span>PTS</span>
-          </div>
-
-          <div className="result-divider" />
-
-          <div className="result-stats">
-            <div>
-              <span>링 통과</span>
-              <strong>{passedRings}<small>개</small></strong>
+            <div className="result-score">
+              {score.toLocaleString()}
+              <span>PTS</span>
             </div>
 
-            <div>
-              <span>탐험률</span>
-              <strong>{exploration}<small>%</small></strong>
-            </div>
+            <dl className="result-score-breakdown">
+              <div><dt>링 통과 점수</dt><dd>{ringPoints.toLocaleString()}점</dd></div>
+              <div><dt>착륙 보너스</dt><dd>{landingPoints.toLocaleString()}점</dd></div>
+            </dl>
 
-            <div>
-              <span>비행 시간</span>
-              <strong>{formatTime(time)}</strong>
+            <div className="result-divider" />
+
+            <div className="result-stats">
+              <div>
+                <span>링 통과</span>
+                <strong>{passedRings}<small>개</small></strong>
+              </div>
+
+              <div>
+                <span>발견 구역</span>
+                <strong>{discovered.length}<small> / {totalRegions}</small></strong>
+              </div>
+
+              <div>
+                <span>비행 시간</span>
+                <strong>{formatTime(elapsed)}</strong>
+              </div>
+              <div>
+                <span>복귀</span>
+                <strong>{recoveries}<small>회</small></strong>
+              </div>
             </div>
-          </div>
-        </section>
+            {terrains.length > 0 && (
+              <>
+                <div className="result-divider" />
+                <h2 className="result-card-label">지형별 조사</h2>
+                <ul className="terrain-results">
+                  {terrains.map(({ type, passed, total }) => (
+                    <li key={type}>
+                      <span>{TERRAIN_NAMES[type]}</span>
+                      <strong className={passed === total ? 'terrain-complete' : undefined}>
+                        {passed === total ? '완료' : `${passed} / ${total}`}
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
+          <section className="result-map-card">
+            <FlightRoute path={path} distance={distance} discovered={discovered} landingPad={landingPad} showLegend />
+          </section>
+        </div>
 
         <div className="result-actions">
           <button className="primary-button" onClick={onRestart}>
@@ -288,34 +469,56 @@ function ResultScreen({ time, onRestart, onHome }) {
 // 전체 앱
 function App() {
   const [gameState, setGameState] = useState('start')
-  const [time, setTime] = useState(0)
+  const [progress, setProgress] = useState(EMPTY_FLIGHT_PROGRESS)
+  const sceneContainer = useRef(null)
+  const ringDirection = useRef(null)
+  const scene = useRef(null)
+  const isPaused = gameState === 'paused'
+  const docked = gameState === 'repair' || gameState === 'docked'
+  const inFlight = gameState === 'playing' || isPaused || docked
 
-  // 게임이 진행 중일 때만 시간 증가
+  useEffect(() => {
+    if (!inFlight) return
+
+    const gameScene = createGameScene(
+      THREE, sceneContainer.current, setProgress, ringDirection.current,
+      (storm) => setGameState(storm ? 'repair' : 'docked'),
+    )
+    scene.current = gameScene
+    return () => {
+      scene.current = null
+      gameScene.dispose()
+    }
+  }, [inFlight])
+
+  useEffect(() => {
+    scene.current?.setPaused(isPaused)
+  }, [isPaused])
+
   useEffect(() => {
     if (gameState !== 'playing') return
 
-    const timer = setInterval(() => {
-      setTime((previousTime) => previousTime + 1)
-    }, 1000)
-
-    return () => clearInterval(timer)
+    const pauseWhenHidden = () => {
+      if (document.hidden) setGameState('paused')
+    }
+    document.addEventListener('visibilitychange', pauseWhenHidden)
+    return () => document.removeEventListener('visibilitychange', pauseWhenHidden)
   }, [gameState])
 
   // 게임 시작
   const startGame = () => {
-    setTime(0)
+    setProgress(EMPTY_FLIGHT_PROGRESS)
     setGameState('playing')
   }
 
   // 게임 재시작
   const restartGame = () => {
-    setTime(0)
-    setGameState('playing')
+    startGame()
+    scene.current?.reset()
   }
 
   // 메인 화면으로 이동
   const goHome = () => {
-    setTime(0)
     setGameState('start')
   }
 
@@ -325,34 +528,47 @@ function App() {
         <StartScreen onStart={startGame} />
       )}
 
-      {gameState === 'playing' && (
+      {inFlight && (
         <PlayingScreen
-          time={time}
+          progress={progress}
+          sceneContainer={sceneContainer}
+          ringDirection={ringDirection}
+          isPaused={isPaused}
           onPause={() => setGameState('paused')}
+          onToggleLandingGuide={() => scene.current?.setLandingGuide(progress.guidance?.kind !== 'landing')}
+          onFinish={() => {
+            if (scene.current?.finish()) setGameState('result')
+          }}
+        />
+      )}
+
+      {isPaused && (
+        <PauseScreen
+          onResume={() => setGameState('playing')}
+          onRestart={restartGame}
+          onHome={goHome}
+          storm={progress.storm}
+        />
+      )}
+
+      {docked && (
+        <StormRepair
+          repairRequired={gameState === 'repair'}
+          onRepair={() => {
+            scene.current?.resolveStorm()
+            setGameState('docked')
+          }}
+          onTakeOff={() => {
+            scene.current?.takeOff()
+            setGameState('playing')
+          }}
           onFinish={() => setGameState('result')}
         />
       )}
 
-      {gameState === 'paused' && (
-        <>
-          <PlayingScreen
-            time={time}
-            onPause={() => {}}
-            onFinish={() => setGameState('result')}
-            isPaused={true}
-          />
-
-          <PauseScreen
-            onResume={() => setGameState('playing')}
-            onRestart={restartGame}
-            onHome={goHome}
-          />
-        </>
-      )}
-
       {gameState === 'result' && (
         <ResultScreen
-          time={time}
+          progress={progress}
           onRestart={restartGame}
           onHome={goHome}
         />
