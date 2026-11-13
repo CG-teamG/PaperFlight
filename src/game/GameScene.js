@@ -15,7 +15,7 @@ import { configureRenderer, createEnvironment } from './Environment.js'
 import { FlightController } from './FlightController.js'
 import { createFlightPath } from './FlightPath.js'
 import { createFlightProgress } from './FlightProgress.js'
-import { getFlightContact, isOutsideSurveyArea } from './FlightRules.js'
+import { getEmergencyLandingPoint, getFlightContact, isOutsideSurveyArea } from './FlightRules.js'
 import { updateFollowCamera } from './FollowCamera.js'
 
 const FLIGHT_SPEED = 20
@@ -52,6 +52,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
   const discovered = new Set()
   let storm = false
   let docked = false
+  let emergencyLanding = null
   let nextStorm = STORM_INTERVAL
   let stormsResolved = 0
   let guidingLanding = false
@@ -91,6 +92,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       discovered: [...discovered],
       totalRegions: environment.zones.length,
       storm,
+      autoLanding: emergencyLanding !== null && !docked,
       stormsResolved,
       ...flightPath.getSnapshot(),
       speed: flight.speed,
@@ -110,6 +112,13 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     flight.setInputEnabled(false)
     outcome = reason
     publishProgress()
+  }
+
+  function dock() {
+    docked = true
+    finish(storm ? 'sheltered' : 'landed')
+    render()
+    onDocked(storm)
   }
 
   function updateRingDirection() {
@@ -163,6 +172,14 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
 
   function stepFlight(delta) {
     elapsed += delta
+    if (emergencyLanding) {
+      emergencyLanding.elapsed += delta
+      const progress = Math.min(emergencyLanding.elapsed / 2, 1)
+      airplane.position.lerpVectors(emergencyLanding.start, emergencyLanding.destination, progress)
+      flightPath.update(airplane.position)
+      if (progress === 1) dock()
+      return
+    }
     const stormStarted = !storm && elapsed >= nextStorm
     if (stormStarted) {
       storm = true
@@ -172,6 +189,20 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     }
     previousPosition.copy(airplane.position)
     flight.update(delta)
+    const landingPoint = storm && getEmergencyLandingPoint(environment.landingPad.position, airplane.position)
+    if (landingPoint) {
+      emergencyLanding = {
+        start: airplane.position.clone(),
+        destination: new THREE.Vector3(landingPoint.x, landingPoint.y, landingPoint.z),
+        elapsed: 0,
+      }
+      airplane.lookAt(emergencyLanding.destination)
+      airplaneModel.rotation.z = 0
+      flightPath.update(airplane.position)
+      flight.setInputEnabled(false)
+      publishProgress()
+      return
+    }
     airplaneModel.rotation.z = THREE.MathUtils.damp(airplaneModel.rotation.z, -flight.turnInput * 0.35, 8, delta)
     const contact = getFlightContact(environment, previousPosition, airplane.position, flight.speed)
     if (contact) airplane.position.copy(contact.position)
@@ -184,10 +215,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     }
 
     if (contact?.outcome === 'landed') {
-      docked = true
-      finish(storm ? 'sheltered' : 'landed')
-      render()
-      onDocked(storm)
+      dock()
       return
     }
     if (contact?.outcome === 'recovered') {
@@ -222,7 +250,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     setPaused(value) {
       paused = value || docked
       previousTime = null
-      flight.setInputEnabled(!paused)
+      flight.setInputEnabled(!paused && !emergencyLanding)
     },
     setLandingGuide(enabled) {
       guidingLanding = enabled
@@ -247,6 +275,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     takeOff() {
       if (!docked || storm) return
       docked = false
+      emergencyLanding = null
       outcome = null
       guidingLanding = false
       flight.reset()
@@ -268,6 +297,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       discovered.clear()
       storm = false
       docked = false
+      emergencyLanding = null
       nextStorm = STORM_INTERVAL
       stormsResolved = 0
       environment.setStorm(false)

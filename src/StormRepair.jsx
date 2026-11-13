@@ -31,10 +31,10 @@ export default function StormRepair({ repairRequired, onRepair, onTakeOff, onFin
   return (
     <dialog ref={dialog} className="pause-modal storm-repair" aria-labelledby="repair-title"
       onCancel={(event) => event.preventDefault()}>
-      <h2 id="repair-title">{repairRequired ? '폭풍 대응 장치 복구' : '착륙 완료'}</h2>
+      <h2 id="repair-title">{repairRequired ? '방재 장치 복구' : connected === circuits.length ? '폭풍 해소' : '착륙 완료'}</h2>
       {repairRequired ? (
         <>
-          <p>폭풍으로 끊어진 회로를 순서대로 연결하세요.</p>
+          <p>H에 착륙했어요. 표시된 순서대로 단자를 눌러 방재 장치를 다시 가동하세요.</p>
           <ol className="repair-steps">
             {circuits.map(({ name }, index) => <li key={name} data-connected={index < connected}>{name}</li>)}
           </ol>
@@ -61,7 +61,7 @@ export default function StormRepair({ repairRequired, onRepair, onTakeOff, onFin
         </>
       ) : (
         <>
-          <p>같은 섬에서 탐색을 이어가거나 이번 비행 기록을 확인하세요.</p>
+          <p>{connected === circuits.length ? '방재 장치가 다시 작동해 안전하게 비행할 수 있어요.' : '같은 섬에서 탐색을 이어가거나 이번 비행을 마치세요.'}</p>
           <button className="primary-button modal-primary" onClick={onTakeOff}>다시 이륙</button>
           <button className="secondary-button" onClick={onFinish}>비행 마치기</button>
         </>

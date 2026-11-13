@@ -23,7 +23,7 @@ import StormRepair from './StormRepair.jsx'
 import { getTerrainMap, MAP_SIZE } from './game/Environment.js'
 import { MAX_FLIGHT_SPEED } from './game/FlightController.js'
 import { EMPTY_FLIGHT_PROGRESS, LANDING_BONUS_POINTS } from './game/FlightProgress.js'
-import { LANDING_MAX_SPEED } from './game/FlightRules.js'
+import { EMERGENCY_LANDING_HEIGHT, EMERGENCY_LANDING_RADIUS, LANDING_MAX_SPEED } from './game/FlightRules.js'
 import { createGameScene } from './game/GameScene.js'
 import { BASE_RING_POINTS } from './game/RingSystem.js'
 import './App.css'
@@ -174,7 +174,7 @@ function StartScreen({ onStart }) {
 // 게임 플레이 화면
 function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFinish, onToggleLandingGuide, isPaused }) {
   const {
-    score, passedRings, totalRings, discovered = [], totalRegions = 0, storm,
+    score, passedRings, totalRings, discovered = [], totalRegions = 0, storm, autoLanding,
     terrains, award, speed, distance, path, recoveries, landingPad,
     elapsed, guidance, recoveryReason, outsideSurveyArea,
   } = progress
@@ -220,9 +220,14 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFin
         <div className="flight-objective">
           {guidingLanding ? (
             <>
-              <strong>{storm ? '폭풍 경보 · 비상 귀환' : '귀환 안내'}</strong>
-              <span>H에서 {LANDING_MAX_SPEED} u/s 이하로 완만하게 하강하세요.</span>
-              {storm && <span>발견과 링 점수는 방재 장치를 복구한 뒤 다시 기록돼요.</span>}
+              <strong>{autoLanding ? '자동 착륙 중' : storm ? '폭풍 경보 · 비상 귀환' : '귀환 안내'}</strong>
+              {storm ? (
+                <span>
+                  {autoLanding
+                    ? '착륙이 끝나면 복구 미니게임이 열려요.'
+                    : `H에서 ${EMERGENCY_LANDING_RADIUS} u 이내, 상대 고도 ${EMERGENCY_LANDING_HEIGHT} u 이하로 접근하면 자동 착륙해요.`}
+                </span>
+              ) : <span>H에서 {LANDING_MAX_SPEED} u/s 이하로 완만하게 하강하세요.</span>}
             </>
           ) : (
             <>
@@ -283,7 +288,10 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFin
         <div className="guide-details">
           <strong>{guidingLanding ? 'H 착륙장' : `${TERRAIN_NAMES[guidance?.terrain] ?? ''} 추천 링`}</strong>
           {guidance && <span>{Math.round(guidance.distance).toLocaleString()} u</span>}
-          {guidingLanding && (
+          {guidingLanding && storm && !autoLanding && (
+            <span>착륙장 기준 고도 {guidance.altitude} u</span>
+          )}
+          {guidingLanding && !storm && (
             <span className={speed > LANDING_MAX_SPEED ? 'guide-warning' : ''}>
               {speed > LANDING_MAX_SPEED ? 'S로 감속' : `착륙장 기준 고도 ${guidance.altitude} u`}
             </span>
@@ -322,9 +330,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFin
           ))}
         </div>
 
-        <button className="finish-button" onClick={onFinish} disabled={storm}>
-          비행 종료 →
-        </button>
+        {!storm && <button className="finish-button" onClick={onFinish}>비행 종료 →</button>}
       </footer>
     </main>
   )
@@ -360,13 +366,13 @@ function PauseScreen({ onResume, onRestart, onHome, storm }) {
         이어서 비행하기 <span>→</span>
       </button>
 
-      <button className="secondary-button" onClick={onRestart} disabled={storm}>
+      {!storm && <button className="secondary-button" onClick={onRestart}>
         처음부터 다시 시작
-      </button>
+      </button>}
 
-      <button className="text-button" onClick={onHome} disabled={storm}>
+      {!storm && <button className="text-button" onClick={onHome}>
         메인 화면으로 돌아가기
-      </button>
+      </button>}
     </dialog>
   )
 }

@@ -1,5 +1,14 @@
 export const LANDING_MAX_SPEED = 25
+export const EMERGENCY_LANDING_RADIUS = 100
+export const EMERGENCY_LANDING_HEIGHT = 90
 const AIRPLANE_CLEARANCE = 1.2
+
+export function getEmergencyLandingPoint(pad, position) {
+  const height = position.y - pad.y
+  if (height < AIRPLANE_CLEARANCE || height > EMERGENCY_LANDING_HEIGHT ||
+      Math.hypot(position.x - pad.x, position.z - pad.z) > EMERGENCY_LANDING_RADIUS) return null
+  return { x: pad.x, y: pad.y + AIRPLANE_CLEARANCE, z: pad.z }
+}
 
 export function isOutsideSurveyArea(position, mapSize) {
   return Math.max(Math.abs(position.x), Math.abs(position.z)) >= mapSize * 0.6
