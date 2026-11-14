@@ -39,7 +39,7 @@ export class ExplorationMap {
     this.container = container;
     this.data = data;
     this.disposed = false;
-    this.lastInteract = -1e9;
+    this.resumeRotationAt = 0;
 
     const W = Math.max(1, container.clientWidth);
     const H = Math.max(1, container.clientHeight);
@@ -137,7 +137,10 @@ export class ExplorationMap {
     this.controls.maxPolarAngle = Math.PI * 0.47;
     this.controls.enablePan = false;
     this.controls.addEventListener("start", () => {
-      this.lastInteract = performance.now();
+      this.resumeRotationAt = Infinity;
+    });
+    this.controls.addEventListener("end", () => {
+      this.resumeRotationAt = performance.now() + 1000;
     });
     this.controls.update();
 
@@ -149,7 +152,7 @@ export class ExplorationMap {
     const loop = (now) => {
       if (this.disposed) return;
       this.raf = requestAnimationFrame(loop);
-      this.controls.autoRotate = !reducedMotion.matches && now - this.lastInteract > 3500;
+      this.controls.autoRotate = !reducedMotion.matches && now >= this.resumeRotationAt;
       this.controls.autoRotateSpeed = 0.9;
       this.controls.update();
       this.renderer.render(this.scene, this.camera);

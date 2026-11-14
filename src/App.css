@@ -25,8 +25,11 @@
 }
 
 :root {
-  --heading: 'PaperFlight Reatic', 'DM Sans', 'Noto Sans KR', sans-serif;
-  font-family: 'PaperFlight Reatic', 'DM Sans', 'Noto Sans KR', sans-serif;
+  --game-font: 'PaperFlight Reatic', 'DM Sans', 'Noto Sans KR', sans-serif;
+  --sans: var(--game-font);
+  --heading: var(--game-font);
+  --mono: var(--game-font);
+  font-family: var(--game-font);
   color: #ffffff;
   background: #172a38;
   font-synthesis: none;
@@ -1228,3 +1231,5 @@ h2.result-card-label {
     letter-spacing: 1px;
   }
 }
+
+.app :is(button, input, select, textarea, kbd, time) { font-family: inherit; }
