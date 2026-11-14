@@ -17,7 +17,6 @@ If you are developing a production application, we recommend using TypeScript wi
 
 ### UI icon credits
 
-- [Lightning Storm](https://game-icons.net/1x1/lorc/lightning-storm.html) by Lorc, tinted red in the HUD
 - [Electrical Socket](https://game-icons.net/1x1/delapouite/electrical-socket.html) by Delapouite
 
-Both are licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+The icon is licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).

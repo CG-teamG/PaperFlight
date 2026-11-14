@@ -24,7 +24,6 @@ import { ExplorationMap } from './game/ExplorationMap.js'
 import { HEIGHT_COLOR } from './game/FlightTrail.js'
 import { EMPTY_FLIGHT_PROGRESS } from './game/FlightProgress.js'
 import { createGameScene } from './game/GameScene.js'
-import stormIcon from './assets/storm-icon.svg'
 import StormRepair from './StormRepair.jsx'
 import { createCircuit } from './game/RepairCircuit.js'
 import { BASE_RING_POINTS } from './game/RingSystem.js'
@@ -135,7 +134,6 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
       </header>
 
       {storm && <div className="storm-forecast emergency-status" data-active={!isPaused} role="status">
-        <span className="game-icon" style={{ '--icon': `url(${stormIcon})` }} aria-hidden="true" />
         <strong>비상 착륙</strong> <span className="emergency-instruction">H 착륙장으로 즉시 귀환</span>
       </div>}
       <aside className="hud-panel exploration-panel" aria-label="비행 계기">
@@ -158,7 +156,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
         </div>}
       </div>
       {!storm && progress.nearLanding && <div className="landing-tip">
-        H 착륙장 접근 중
+        H 착륙장 위에서 ↓로 하강
       </div>}
 
       <div className="ring-feedback" role="status" aria-atomic="true">

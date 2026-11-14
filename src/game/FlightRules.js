@@ -1,21 +1,14 @@
 export const EMERGENCY_LANDING_RADIUS = 100
 const AIRPLANE_CLEARANCE = 1.2
 
-export function getLandingArrival(pad, previous, current) {
-  const x = previous.x - pad.x
-  const z = previous.z - pad.z
-  const dx = current.x - previous.x
-  const dz = current.z - previous.z
-  const c = x * x + z * z - EMERGENCY_LANDING_RADIUS ** 2
-  if (c <= 0) return 0
+export function getLandingArrival({ position: pad, radius }, previous, current) {
+  const surface = pad.y + AIRPLANE_CLEARANCE
+  if (previous.y < surface || current.y > surface || current.y >= previous.y) return null
 
-  const a = dx * dx + dz * dz
-  const b = x * dx + z * dz
-  const discriminant = b * b - a * c
-  if (a === 0 || discriminant < 0) return null
-
-  const entry = (-b - Math.sqrt(discriminant)) / a
-  return entry >= 0 && entry <= 1 ? entry : null
+  const contact = (previous.y - surface) / (previous.y - current.y)
+  const x = previous.x + (current.x - previous.x) * contact
+  const z = previous.z + (current.z - previous.z) * contact
+  return Math.hypot(x - pad.x, z - pad.z) <= radius ? contact : null
 }
 
 export function isOutsideSurveyArea(position, mapSize) {

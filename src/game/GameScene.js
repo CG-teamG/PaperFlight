@@ -227,7 +227,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     flight.update(delta)
     const windBank = storm ? applyStormWind(delta) : 0
     const pad = environment.landingPad.position
-    const arrival = departingLandingArea ? null : getLandingArrival(pad, previousPosition, airplane.position)
+    const arrival = departingLandingArea ? null : getLandingArrival(environment.landingPad, previousPosition, airplane.position)
     if (departingLandingArea && Math.hypot(airplane.position.x - pad.x, airplane.position.z - pad.z) > EMERGENCY_LANDING_RADIUS) {
       departingLandingArea = false
     }
