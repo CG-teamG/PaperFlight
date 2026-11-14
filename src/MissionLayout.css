@@ -256,3 +256,41 @@ html, body, #root { min-height: 100%; }
 .flight-timeline h2 { margin: 0 0 5px; font-size: 12px; text-align: left; }
 .flight-route-heading { flex-wrap: wrap; gap: 4px 12px; }
 .result-screen .discovered-sites { margin: 8px 0 0; }
+
+.start-screen { position: relative; isolation: isolate; background: #1d3040; }
+.start-landscape { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.start-screen::before { content: ""; position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg, #132533 0%, #142736d9 32%, #15273710 78%); }
+.start-content h1 { color: #fff7e6; }
+.start-control kbd + kbd { margin-left: 3px; }
+.start-control { color: #e5f1f7; }
+.game-screen .flight-telemetry { display: grid; gap: 8px; }
+.game-screen .flight-telemetry dd { font-variant-numeric: tabular-nums; }
+.emergency-status { color: #fff2ed; background: #4e2029; border-color: #ff8b87; }
+.survey-status { margin: 8px 0 0; font-size: 12px; color: #ffc2bc; }
+.ring-direction[data-target="ring"] { color: #a9ebff; padding: 3px 7px; min-width: 0; background: #152b3de8; }
+.landing-direction[data-in-view="true"] .ring-direction-arrow { display: none; }
+.discovery-toast, .survey-boundary, .landing-tip { position: absolute; left: 50%; bottom: 30px; z-index: 4; transform: translateX(-50%); border-radius: 8px; padding: 8px 14px; background: #172d40e8; color: #f4f8ff; font-size: 13px; white-space: nowrap; }
+.survey-boundary { bottom: 72px; }
+.landing-tip { bottom: 112px; border: 1px solid #e9bf79; }
+.flight-ring-score .score-award { text-align: right; }
+.flight-ring-score .score-award small { display: block; }
+.pause-modal { max-height: calc(100dvh - 24px); overflow: auto; }
+.pause-controls { font-size: 12px; color: #c6dbee; margin: 0 0 16px; }
+.pause-exits { display: grid; gap: 4px; border-top: 1px solid #ffffff27; margin-top: 12px; padding-top: 8px; }
+.storm-repair { background: #f7f2e5; color: #243647; }
+.storm-repair h2, .storm-repair p, .storm-repair .text-button { color: #243647; }
+.storm-repair .secondary-button { color: #243647; border-color: #4f6878; }
+.circuit-tiles button[data-powered="true"] svg line { stroke-width: 4; }
+.result-screen { background: #e9e1d0; color: #243647; }
+.result-screen .result-content h1, .result-screen .result-eyebrow { color: #243647; }
+.result-screen .result-map-card, .result-screen .result-score-card { background: #f7f2e5; color: #243647; border-color: #b9b09c; }
+.result-screen .result-map-3d { height: clamp(172px, calc(100dvh - 466px), 520px); }
+.result-screen .map-legend, .result-screen .result-map-help { color: #243647; }
+.result-screen .flight-events button, .result-actions .secondary-button { color: #243647; border-color: #748594; }
+.flight-events button[aria-pressed="true"] { background: #c6dfec; }
+.flight-timeline-axis i[data-event="storm"] { background: #ffa444; }
+.record-stats .total-score { font-weight: 800; }
+@media (max-width: 720px) {
+  .start-screen::before { background: #142736cf; }
+  .discovery-toast, .survey-boundary, .landing-tip { white-space: normal; width: max-content; max-width: calc(100% - 24px); text-align: center; }
+}

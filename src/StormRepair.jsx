@@ -36,7 +36,7 @@ export default function StormRepair({ repairRequired, maxSpeed, initialCircuit, 
                 const ports = portsAt(index, circuit)
                 return (
                   <button key={index} type="button" data-powered={powered.has(index)}
-                    aria-label={(`회로 ${index + 1}: ${ports.map((port) => DIRECTIONS[port]).join(', ')}. 90도 회전`)}
+                    aria-label={(`회로 ${index + 1}${powered.has(index) ? ', 전원 연결됨' : ''}: ${ports.map((port) => DIRECTIONS[port]).join(', ')}. 90도 회전`)}
                     onClick={() => setCircuit((current) => ({ ...current, rotations: current.rotations.map((turn, tile) => tile === index ? (turn + 1) % 4 : turn) }))}>
                     <svg viewBox="0 0 32 32" aria-hidden="true">
                       {ports.map((port) => (
@@ -50,15 +50,15 @@ export default function StormRepair({ repairRequired, maxSpeed, initialCircuit, 
             </div>
             <span className="circuit-target">→ 방풍막</span>
           </div>
-          <p role="status">{complete ? '회로 연결 완료. 장치를 가동하세요.' : '초록색은 전원이 연결된 회로예요.'}</p>
+          <p role="status">{complete ? '회로 연결 완료. 장치를 가동하세요.' : '굵게 빛나는 선은 전원이 연결된 회로예요.'}</p>
           <button className="primary-button modal-primary" disabled={!complete} onClick={onRepair}>장치 가동</button>
           <button className="text-button" onClick={() => setCircuit(onNewCircuit())}>새 회로 배치</button>
         </>
       ) : (
         <>
-          <p>비행을 이어가면 최고 속도가 {maxSpeed + 100} u/s로 올라가요.</p>
+          <p>같은 섬에서 탐험을 이어가요. 최대 속도 {maxSpeed + 100} u/s</p>
           <button ref={takeOffButton} className="primary-button modal-primary" onClick={onTakeOff}>다시 이륙</button>
-          <button className="secondary-button" onClick={onFinish}>비행 마치기</button>
+          <button className="secondary-button" onClick={onFinish}>비행 마치고 지도 보기</button>
         </>
       )}
     </dialog>

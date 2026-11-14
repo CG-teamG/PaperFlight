@@ -2,6 +2,10 @@ import { BASE_RING_POINTS, RingSystem } from './RingSystem.js'
 
 export const LANDING_BONUS_POINTS = 500
 
+export function speedBonus(speed) {
+  return Math.min(100, Math.max(0, Math.floor((speed - 20) / 2)))
+}
+
 export const EMPTY_FLIGHT_PROGRESS = Object.freeze({
   score: 0,
   ringPoints: 0,
@@ -115,14 +119,17 @@ export function createFlightProgress(environment) {
       recommendRing(airplanePosition)
     },
     // 매 프레임 월드 좌표를 전달하고, 기록이 바뀔 때만 UI에 반영한다.
-    update(airplanePosition, forward) {
+    update(airplanePosition, forward, speed) {
+      const bonus = speedBonus(speed)
       const newlyPassed = ringSystem.update(airplanePosition, (id) => {
         environment.markRingPassed(id)
+        return BASE_RING_POINTS + bonus
       })
       if (newlyPassed === 0) return null
 
       award = {
-        points: BASE_RING_POINTS * newlyPassed,
+        points: (BASE_RING_POINTS + bonus) * newlyPassed,
+        bonus: bonus * newlyPassed,
       }
       recommendRing(airplanePosition, forward)
       return getSnapshot()

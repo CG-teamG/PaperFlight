@@ -2222,7 +2222,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     const beamK = 0.2 + 0.8 * smooth(60, 320, dPad);
     padBeamMat.opacity = (0.6 + 0.15 * Math.sin(elapsed * 2.2)) * beamK;
     padBeamHalo.material.opacity = 0.16 * beamK;
-    padMarker.material.opacity = smooth(120, 300, dPad);
+    padMarker.material.opacity = 1;
     padMarker.position.y = LANDING_PAD.y + 85 + Math.sin(elapsed * 2.4) * 3;
     padRing.material.emissiveIntensity = 0.9 + 0.5 * Math.sin(elapsed * 3); // 패드 둘레 조명 깜빡임
 

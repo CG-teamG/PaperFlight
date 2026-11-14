@@ -41,8 +41,9 @@ export function getFlightContact(environment, previous, current, speed) {
     return { outcome: 'recovered', reason: 'pad-edge', position: current }
   }
 
-  if (current.y <= environment.getGroundHeight(current.x, current.z) + AIRPLANE_CLEARANCE) {
-    return { outcome: 'recovered', reason: 'terrain', position: current }
+  const ground = environment.getGroundHeight(current.x, current.z)
+  if (current.y <= ground + AIRPLANE_CLEARANCE) {
+    return { outcome: 'recovered', reason: ground > 0 ? 'terrain' : 'water', position: current }
   }
   return null
 }
