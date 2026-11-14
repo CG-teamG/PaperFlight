@@ -8,6 +8,7 @@
  * 이 파일에서는 링의 위치와 비행기의 이동 경로를 비교한다.
  */
 
+export const BASE_RING_POINTS = 100;
 const PLANE_EPSILON = 1e-6;
 
 export class RingSystem {
@@ -17,6 +18,7 @@ export class RingSystem {
 
         // 지금까지 통과한 링 개수
         this.passedCount = 0;
+        this.score = 0;
 
         // 이미 통과한 링의 ID를 저장하여 중복 점수를 방지한다.
         this.passedRings = new Set();
@@ -47,7 +49,8 @@ export class RingSystem {
     /**
      * 비행기의 현재 위치를 확인하여
      * 이번 업데이트에서 새롭게 통과한 링 개수를 반환한다.
-     * onPassed에는 이번에 통과한 링의 ID를 전달한다.
+     * onPassed에는 통과한 링의 ID와 데이터를 전달하고, 반환한 점수를 기록한다.
+     * 점수를 반환하지 않으면 링당 기본 점수를 기록한다.
      */
     update(airplanePosition, onPassed) {
         if (!airplanePosition) {
@@ -80,7 +83,7 @@ export class RingSystem {
                 this.passedRings.add(ringId);
                 this.passedCount++;
                 newlyPassed++;
-                onPassed?.(ringId);
+                this.score += onPassed?.(ringId, ring) ?? BASE_RING_POINTS;
             }
         }
 
@@ -191,9 +194,13 @@ export class RingSystem {
         return this.passedCount;
     }
 
-    // 현재 점수를 반환한다. 링 하나당 100점이다.
+    hasPassed(ringId) {
+        return this.passedRings.has(ringId);
+    }
+
+    // 현재 점수를 반환한다.
     getScore() {
-        return this.passedCount * 100;
+        return this.score;
     }
 
     clearPosition() {
@@ -204,6 +211,7 @@ export class RingSystem {
     // 게임을 다시 시작할 때 기록을 초기화한다.
     reset() {
         this.passedCount = 0;
+        this.score = 0;
         this.passedRings.clear();
         this.clearPosition();
     }
