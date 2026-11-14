@@ -19,8 +19,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { ACTIVE_RING_COLOR, getTerrainMap, MAP_SIZE } from './game/Environment.js'
-import { DISCOVERY_RING_TARGET, EMPTY_FLIGHT_PROGRESS } from './game/FlightProgress.js'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { ExplorationMap } from './game/ExplorationMap.js'
+import { ACTIVE_RING_COLOR, MAP_SIZE } from './game/Environment.js'
+import { EMPTY_FLIGHT_PROGRESS } from './game/FlightProgress.js'
 import { EMERGENCY_LANDING_HEIGHT, EMERGENCY_LANDING_RADIUS, LANDING_MAX_SPEED } from './game/FlightRules.js'
 import { createGameScene } from './game/GameScene.js'
 import StormRepair from './StormRepair.jsx'
@@ -29,8 +31,6 @@ import { BASE_RING_POINTS } from './game/RingSystem.js'
 import './App.css'
 import './MissionLayout.css'
 
-const TERRAIN_NAMES = { mountain: '산', forest: '숲', canyon: '협곡', sea: '바다' }
-const MAP_TERRAIN_NAMES = { ...TERRAIN_NAMES, plain: '평원' }
 const FLIGHT_CONTROLS = [
   { keys: ['↑', '↓'], label: '상승·하강' },
   { keys: ['←', '→'], label: '좌우 회전' },
@@ -51,7 +51,7 @@ function formatTime(seconds) {
   return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
 }
 
-function FlightRoute({ path, distance, terrains, landingPad, recommendedRing, heading, routeEvents = [], showLegend = false }) {
+function FlightRoute({ path, distance, island, reveal, landingPad, recommendedRing, heading, routeEvents = [], showLegend = false }) {
   const halfMap = MAP_SIZE / 2
   const mapPoints = [...path, ...routeEvents]
   const xs = mapPoints.map(({ x }) => x)
@@ -66,8 +66,6 @@ function FlightRoute({ path, distance, terrains, landingPad, recommendedRing, he
   const padding = radius * 2
   const start = path[0]
   const end = path.at(-1)
-  const terrain = getTerrainMap()
-  const reveal = Object.fromEntries(terrains.map(({ type, discovered }) => [type, discovered ? 1 : 0]))
   const route = path.map(({ x, z, breakBefore }, index) => `${index === 0 || breakBefore ? 'M' : 'L'}${x},${z}`).join(' ')
 
   return (
@@ -84,15 +82,16 @@ function FlightRoute({ path, distance, terrains, landingPad, recommendedRing, he
         role="img"
         aria-label="발견 지역과 비행 경로, H 착륙장 지도"
       >
-        {terrain.map(({ key, type, elevation, shape }) => (
-          <path
-            key={key}
-            className={`map-terrain-${type}`}
-            data-elevation={elevation}
-            style={{ '--survey-reveal': reveal[type] ?? 0 }}
-            d={shape}
-          />
-        ))}
+        {island && reveal && Array.from({ length: 32 * 32 }, (_, index) => {
+          const u = (index % 32 + .5) / 32
+          const v = (Math.floor(index / 32) + .5) / 32
+          const sample = Math.round(v * (island.grid - 1)) * island.grid + Math.round(u * (island.grid - 1))
+          if (island.heights[sample] <= 0) return null
+          const seen = reveal.data[Math.floor(v * reveal.size) * reveal.size + Math.floor(u * reveal.size)]
+          const step = island.mapSize / 32
+          return <rect key={index} x={index % 32 * step - halfMap} y={Math.floor(index / 32) * step - halfMap}
+            width={step + .1} height={step + .1} fill={seen >= .5 ? '#66aa76' : '#68757f'} />
+        })}
         <path className="flight-route-line" d={route} />
         {recommendedRing && (
           <g className="recommended-map-target" style={{ color: ACTIVE_RING_COLOR }}>
@@ -130,9 +129,6 @@ function FlightRoute({ path, distance, terrains, landingPad, recommendedRing, he
           {landingPad && <li><span className="route-legend-landing" />착륙장</li>}
           {routeEvents.some(({ type }) => type === 'storm') && <li>! 폭풍 발생</li>}
           {routeEvents.some(({ type }) => type === 'landing') && <li>H 착륙 기록</li>}
-          {Object.entries(MAP_TERRAIN_NAMES).map(([type, name]) => (
-            <li key={type}><span className={`map-terrain-${type}`} />{name}</li>
-          ))}
         </ul>
       )}
     </div>
@@ -155,7 +151,7 @@ function StartScreen({ onStart }) {
       <section className="start-content">
         <h1>PaperFlight</h1>
         <ol className="mission-steps">
-          <li><strong>섬 탐색</strong><span>지형별 링을 {DISCOVERY_RING_TARGET}개 통과하면 해당 지역을 발견해요.</span></li>
+          <li><strong>섬 탐색</strong><span>비행한 곳의 지형이 드러나고 링을 통과하면 점수를 얻어요.</span></li>
           <li><strong>비상 귀환</strong><span>폭풍이 오면 H 착륙장으로 돌아오세요.</span></li>
           <li><strong>방재 장치 복구</strong><span>회로를 연결하고 다시 이륙하거나 비행을 마치세요.</span></li>
         </ol>
@@ -177,13 +173,12 @@ function StartScreen({ onStart }) {
 function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFinish, onToggleLandingGuide, isPaused }) {
   const {
     score, passedRings, totalRings,
-    terrains, award, speed, distance, path, recoveries, landingPad,
+    island, reveal, zones = [], exploration = 0, award, speed, distance, path, recoveries, landingPad,
     elapsed, guidance, recoveryReason, outsideSurveyArea, storm, autoLanding, stormCountdown, heading,
   } = progress
   const allRingsPassed = totalRings > 0 && passedRings === totalRings
-  const discoveryCount = terrains.filter(({ discovered }) => discovered).length
-  const totalRegions = terrains.length
-  const surveyProgress = totalRegions ? discoveryCount / totalRegions * 100 : 0
+  const discoveryCount = zones.filter(({ discovered }) => discovered).length
+  const totalRegions = zones.length
   const stormApproaching = stormCountdown != null && stormCountdown <= 10
   const guidingLanding = guidance?.kind === 'landing'
 
@@ -226,17 +221,17 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFin
           <div><dt>링</dt><dd>{passedRings}/{totalRings}</dd></div>
         </dl>
         <div className="discovery-readout">
-          <span>발견 지역</span>
+          <span>탐험률 {exploration}%</span>
           <strong>{discoveryCount}<small> / {totalRegions}</small></strong>
         </div>
 
         <div
-          className="progress-track" role="progressbar" aria-label="발견 지역"
-          aria-valuenow={discoveryCount} aria-valuemax={totalRegions || 1}
+          className="progress-track" role="progressbar" aria-label="탐험률"
+          aria-valuenow={exploration} aria-valuemax={100}
         >
           <div
             className="progress-fill"
-            style={{ width: `${surveyProgress}%` }}
+            style={{ width: `${exploration}%` }}
           />
         </div>
 
@@ -257,18 +252,11 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFin
             </button>
           )}
         </div>
-        <ul hidden={storm} className="flight-terrain-list" aria-label="지역 발견 진행도">
-          {terrains.map(({ type, passed, discovered, discoveryTarget }) => (
-            <li key={type} className={discovered ? 'terrain-complete' : undefined}>
-              <span>{TERRAIN_NAMES[type]}</span><strong>{discovered ? '발견' : passed + '/' + discoveryTarget}</strong>
-            </li>
-          ))}
-        </ul>
       </aside>
 
       <aside className="flight-map" aria-label="탐험 지도">
         <FlightRoute
-          path={path} distance={distance} terrains={terrains} landingPad={landingPad}
+          path={path} distance={distance} island={island} reveal={reveal} landingPad={landingPad}
           heading={heading}
           recommendedRing={guidance?.kind === 'ring' ? guidance.position : null}
         />
@@ -314,7 +302,6 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, onFin
         {award && !storm && (
           <div className="ring-feedback-card" key={passedRings}>
             <strong>+{award.points}점</strong>
-            {award.discoveries.map((type) => <span key={type}>{TERRAIN_NAMES[type]} 지역 발견</span>)}
           </div>
         )}
       </div>
@@ -381,14 +368,30 @@ function PauseScreen({ onResume, onRestart, onHome, storm }) {
   )
 }
 
+function ResultMap({ island, reveal, path, routeEvents, distance }) {
+  const container = useRef(null)
+  useEffect(() => {
+    if (!island || !reveal) return
+    const map = new ExplorationMap(THREE, OrbitControls, container.current, { ...island, reveal, routeEvents }, path)
+    return () => map.dispose()
+  }, [island, reveal, path, routeEvents])
+  return (
+    <>
+      <div className="flight-route-heading"><strong>전체 비행 경로</strong><span>{Math.round(distance).toLocaleString()} u</span></div>
+      <div className="result-map-3d" ref={container} aria-label="3D 비행 경로 지도" />
+      <p className="result-map-help">드래그 회전 · 휠 확대/축소 · 경로 색은 고도 · 주황 폭풍 · 초록 착륙</p>
+    </>
+  )
+}
+
 // 결과 화면
 function ResultScreen({ progress, onRestart, onHome }) {
   const {
-    score, ringPoints, passedRings, terrains, distance, stormsResolved, routeEvents,
-    path, recoveries, landingPad, outcome, elapsed,
+    score, ringPoints, passedRings, island, reveal, zones = [], exploration = 0, distance, stormsResolved, routeEvents,
+    path, recoveries, outcome, elapsed,
   } = progress
-  const discoveryCount = terrains.filter(({ discovered }) => discovered).length
-  const totalRegions = terrains.length
+  const discoveryCount = zones.filter(({ discovered }) => discovered).length
+  const totalRegions = zones.length
   const missionComplete = outcome === 'landed'
   const earlyLanding = outcome === 'early-landing'
 
@@ -433,7 +436,7 @@ function ResultScreen({ progress, onRestart, onHome }) {
               </div>
 
               <div>
-                <span>발견 지역</span>
+                <span>탐험률 {exploration}%</span>
                 <strong>{discoveryCount}<small> / {totalRegions}</small></strong>
               </div>
 
@@ -446,25 +449,9 @@ function ResultScreen({ progress, onRestart, onHome }) {
                 <strong>{recoveries}<small>회</small></strong>
               </div>
             </div>
-            {terrains.length > 0 && (
-              <>
-                <div className="result-divider" />
-                <h2 className="result-card-label">지형별 조사</h2>
-                <ul className="terrain-results">
-                  {terrains.map(({ type, passed, discovered, discoveryTarget }) => (
-                    <li key={type}>
-                      <span>{TERRAIN_NAMES[type]}</span>
-                      <strong className={discovered ? 'terrain-complete' : undefined}>
-                        {discovered ? '발견' : passed + ' / ' + discoveryTarget}
-                      </strong>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
           </section>
           <section className="result-map-card">
-            <FlightRoute path={path} distance={distance} terrains={terrains} landingPad={landingPad} routeEvents={routeEvents} showLegend />
+            <ResultMap island={island} reveal={reveal} path={path} routeEvents={routeEvents} distance={distance} />
           </section>
         </div>
 
@@ -484,6 +471,7 @@ function ResultScreen({ progress, onRestart, onHome }) {
 
 // 전체 앱
 function App() {
+  const [flightId, setFlightId] = useState(0)
   const [gameState, setGameState] = useState('start')
   const [progress, setProgress] = useState(EMPTY_FLIGHT_PROGRESS)
   const sceneContainer = useRef(null)
@@ -510,11 +498,11 @@ function App() {
       scene.current = null
       gameScene.dispose()
     }
-  }, [inFlight])
+  }, [inFlight, flightId])
 
   useEffect(() => {
     scene.current?.setPaused(isPaused || docked)
-  }, [isPaused, docked])
+  }, [isPaused, docked, flightId])
 
   useEffect(() => {
     if (gameState !== 'playing') return
@@ -544,7 +532,7 @@ function App() {
   // 게임 재시작
   const restartGame = () => {
     startGame()
-    scene.current?.reset()
+    setFlightId((id) => id + 1)
   }
 
   // 메인 화면으로 이동

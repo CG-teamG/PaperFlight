@@ -30,7 +30,8 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
   configureRenderer(THREE, renderer)
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 6500)
-  const environment = createEnvironment(THREE, scene)
+  const environment = createEnvironment(THREE, scene, { worldRingGuide: false })
+  const island = environment.getMapData()
   const airplane = new THREE.Group()
   airplane.name = 'Airplane'
   const airplaneModel = createAirplane(THREE)
@@ -92,6 +93,10 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       heading: Math.atan2(forward.x, -forward.z) * 180 / Math.PI,
       routeEvents: routeEvents.slice(),
       ...snapshot,
+      island: outcome ? { ...island, rings: island.rings.map((ring, index) => ({ ...ring, passed: environment.rings[index].passed })) } : island,
+      reveal: environment.getRevealGrid(),
+      exploration: Math.round(environment.getExplorationRate() * 100),
+      zones: environment.getZoneState(),
       storm,
       autoLanding: emergencyLanding !== null && !docked,
       stormCountdown: storm || docked ? null : Math.max(0, Math.ceil(nextStorm - elapsed)),
@@ -118,7 +123,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
 
   function dock() {
     docked = true
-    routeEvents.push({ type: 'landing', x: airplane.position.x, z: airplane.position.z })
+    routeEvents.push({ type: 'landing', x: airplane.position.x, y: airplane.position.y, z: airplane.position.z })
     finish(storm ? 'sheltered' : 'landed')
     render()
     onDocked?.(storm)
@@ -212,7 +217,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     const stormStarted = !storm && elapsed >= nextStorm
     if (stormStarted) {
       storm = true
-      routeEvents.push({ type: 'storm', x: airplane.position.x, z: airplane.position.z })
+      routeEvents.push({ type: 'storm', x: airplane.position.x, y: airplane.position.y, z: airplane.position.z })
       environment.setStorm(true)
       progress.suspendSurvey()
     }
@@ -270,7 +275,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       remaining -= step
     }
     if (paused) return
-    environment.update(delta, airplane.position)
+    environment.update(delta, airplane.position, { survey: !storm })
     render()
   })
 

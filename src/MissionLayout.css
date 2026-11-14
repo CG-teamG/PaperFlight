@@ -168,3 +168,7 @@
 @media (prefers-reduced-motion: reduce) {
   .flight-route-map .recommended-map-halo { animation: none; opacity: .65; }
 }
+
+.result-map-3d { height: clamp(240px, 50dvh, 460px); overflow: hidden; border-radius: 8px; }
+.result-map-3d canvas { display: block; }
+.result-map-help { margin-top: 8px; font-size: 12px; color: #bfd1dd; }

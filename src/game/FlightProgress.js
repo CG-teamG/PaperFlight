@@ -1,8 +1,6 @@
-import { RINGS_PER_TERRAIN } from './Environment.js'
 import { BASE_RING_POINTS, RingSystem } from './RingSystem.js'
 
 export const LANDING_BONUS_POINTS = 500
-export const DISCOVERY_RING_TARGET = RINGS_PER_TERRAIN
 
 export const EMPTY_FLIGHT_PROGRESS = Object.freeze({
   score: 0,
@@ -37,9 +35,6 @@ export function createFlightProgress(environment) {
     targetRing = null
     let bestCost = Infinity
     let bestObstructed = true
-    let bestSurveyProgress = -1
-    const terrainProgress = environment.getTerrainProgress()
-    const firstGoalDone = Object.values(terrainProgress).some(({ passed, total }) => total > 0 && passed === total)
 
     for (const ring of rings) {
       if (ringSystem.hasPassed(ring.id)) continue
@@ -61,15 +56,10 @@ export function createFlightProgress(environment) {
         }
       }
 
-      const terrain = terrainProgress[ring.terrain]
-      const surveyProgress = !firstGoalDone && terrain?.total > 0 ? terrain.passed / terrain.total : 0
       const cost = distance * (1 + (1 - alignment) * 0.5)
-      const advancesSurvey = surveyProgress > bestSurveyProgress ||
-        (surveyProgress === bestSurveyProgress && cost < bestCost)
-      if ((!obstructed && bestObstructed) || (obstructed === bestObstructed && advancesSurvey)) {
+      if ((!obstructed && bestObstructed) || (obstructed === bestObstructed && cost < bestCost)) {
         bestCost = cost
         bestObstructed = obstructed
-        bestSurveyProgress = surveyProgress
         targetRing = ring
       }
     }
@@ -78,11 +68,14 @@ export function createFlightProgress(environment) {
   }
 
   function getSnapshot(outcome) {
-    const terrains = Object.entries(environment.getTerrainProgress())
+    const terrains = Object.entries(rings.reduce((counts, ring) => {
+      const terrain = counts[ring.terrain] ??= { passed: 0, total: 0 }
+      terrain.total++
+      if (ringSystem.hasPassed(ring.id)) terrain.passed++
+      return counts
+    }, {}))
       .map(([type, counts]) => ({ type, ...counts }))
       .filter(({ total }) => total > 0)
-      .map((terrain) => ({ ...terrain, discoveryTarget: DISCOVERY_RING_TARGET }))
-      .map((terrain) => ({ ...terrain, discovered: terrain.passed >= terrain.discoveryTarget }))
 
     const ringPoints = ringSystem.getScore()
     const landingPoints = outcome === 'landed' || outcome === 'early-landing' ? LANDING_BONUS_POINTS : 0
@@ -116,17 +109,13 @@ export function createFlightProgress(environment) {
     },
     // 매 프레임 월드 좌표를 전달하고, 기록이 바뀔 때만 UI에 반영한다.
     update(airplanePosition, forward) {
-      const before = new Map()
-      const newlyPassed = ringSystem.update(airplanePosition, (id, ring) => {
-        if (!before.has(ring.terrain)) before.set(ring.terrain, environment.getTerrainProgress()[ring.terrain]?.passed ?? 0)
+      const newlyPassed = ringSystem.update(airplanePosition, (id) => {
         environment.markRingPassed(id)
       })
       if (newlyPassed === 0) return null
 
       award = {
         points: BASE_RING_POINTS * newlyPassed,
-        discoveries: getSnapshot().terrains.filter(({ type, discoveryTarget, discovered }) =>
-          before.has(type) && before.get(type) < discoveryTarget && discovered).map(({ type }) => type),
       }
       recommendRing(airplanePosition, forward)
       return getSnapshot()

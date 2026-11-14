@@ -3,7 +3,7 @@ const MAX_PATH_POINTS = 512
 export function createFlightPath(startPosition) {
   const previousPosition = startPosition.clone()
   let distance = 0
-  let path = [{ x: startPosition.x, z: startPosition.z }]
+  let path = [{ x: startPosition.x, y: startPosition.y, z: startPosition.z }]
 
   function addPoint(point) {
     if (path.length === MAX_PATH_POINTS) {
@@ -18,9 +18,9 @@ export function createFlightPath(startPosition) {
   }
 
   function samplePosition() {
-    const { x, z } = previousPosition
+    const { x, y, z } = previousPosition
     const last = path.at(-1)
-    if (x !== last.x || z !== last.z) addPoint({ x, z })
+    if (x !== last.x || y !== last.y || z !== last.z) addPoint({ x, y, z })
   }
 
   return {
@@ -31,7 +31,7 @@ export function createFlightPath(startPosition) {
     resumeAt(position) {
       samplePosition()
       previousPosition.copy(position)
-      addPoint({ x: position.x, z: position.z, breakBefore: true })
+      addPoint({ x: position.x, y: position.y, z: position.z, breakBefore: true })
     },
     getSnapshot() {
       samplePosition()
