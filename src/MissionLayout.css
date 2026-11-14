@@ -1,0 +1,170 @@
+/* Mission information follows the player's next action. */
+#root { width: 100%; border: 0; }
+.start-screen {
+  display: grid;
+  align-items: center;
+  height: auto;
+  min-height: 100dvh;
+  padding: clamp(24px, 8vw, 104px);
+}
+.start-content { position: static; width: min(100%, 570px); transform: none; }
+.start-content h1 { margin: 0; font-size: clamp(40px, 9vw, 104px); letter-spacing: -.065em; line-height: 1; }
+.mission-steps { display: grid; gap: 13px; margin: 28px 0; padding-left: 24px; color: #d8e6ed; font-size: 14px; }
+.mission-steps li::marker { color: #9ee7d2; font-weight: 800; }
+.mission-steps strong { display: block; color: #fff; }
+.mission-steps span { display: block; margin-top: 2px; }
+.start-button { width: min(100%, 245px); min-width: 0; }
+.game-screen { --map-width: min(clamp(252px, 30vw, 425px), 46dvh); min-height: 470px; height: 100dvh; }
+.flight-map {
+  position: absolute;
+  z-index: 9;
+  right: var(--hud-edge);
+  bottom: 16px;
+  width: var(--map-width);
+}
+.flight-ring-score { color: #fff; text-shadow: 0 1px 3px #091927, 0 0 6px #091927, 0 0 12px #091927; }
+.flight-header-actions { display: grid; justify-items: end; gap: 9px; pointer-events: none; }
+.flight-header-actions button { pointer-events: auto; }
+.flight-ring-score { display: flex; align-items: baseline; gap: 8px; }
+.flight-ring-score span { font-size: clamp(14px, 1.6vw, 20px); font-weight: 700; }
+.flight-ring-score strong { font-size: clamp(29px, 4vw, 54px); line-height: 1; font-variant-numeric: tabular-nums; }
+.game-header { align-items: start; pointer-events: none; }
+.game-header .flight-status { align-self: start; }
+.flight-telemetry { display: flex; gap: 9px; margin: 0 0 10px; padding: 0 0 8px; border-bottom: 1px solid #ffffff38; }
+.flight-telemetry div { min-width: 0; }
+.flight-telemetry dt, .flight-telemetry small { font-size: 10px; color: #bfd1dd; }
+.flight-telemetry dd { margin: 2px 0 0; font-size: 12px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.game-screen .flight-map .flight-route-map { height: auto; aspect-ratio: 1; margin-top: 0; }
+.game-screen .game-footer { right: calc(var(--hud-edge) + var(--map-width) + 14px); flex-wrap: wrap; }
+.control-guide { flex-wrap: wrap; }
+.game-screen[data-storm="true"] .flight-status { border-color: #ffd287; background: #443222; color: #ffe3aa; }
+.game-screen[data-storm="true"] .status-dot { background: #ffd287; box-shadow: none; }
+.game-screen[data-storm="true"] .flight-objective { font-size: 12px; line-height: 1.5; }
+.game-screen[data-storm="true"] .flight-objective strong { color: #ffd287; }
+.game-screen[data-storm="true"] .landing-direction {
+  top: auto;
+  bottom: 16%;
+  width: max-content;
+  max-width: 90%;
+  border: 2px solid #ffd287;
+  background: #382c20;
+  color: #ffe3aa;
+}
+.finish-button:disabled, .pause-modal button:disabled { opacity: .54; cursor: default; }
+.route-legend-discovery { --terrain-color: #86d7a7; }
+.result-content { width: min(1080px, calc(100% - 32px)); }
+.result-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr); }
+.result-map-card .flight-route-map { height: clamp(170px, 39dvh, 390px); }
+.storm-repair { width: min(500px, calc(100% - 30px)); text-align: left; }
+.storm-repair p { margin: 10px 0 16px; font-size: 13px; }
+.repair-steps, .repair-terminals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.repair-steps { padding: 0; list-style-position: inside; }
+.repair-steps li { border: 1px solid #829caf; padding: 8px; border-radius: 6px; font-size: 12px; }
+.repair-steps small { display: block; color: #c5d5df; }
+.repair-steps li[aria-current="step"] { border-color: #ffd287; color: #ffe3aa; }
+.repair-steps li[data-connected="true"] { border-color: #84d4aa; color: #b6f0cd; }
+.repair-feedback[data-failed="true"] { color: #ffb3a2; }
+.repair-terminals button span { display: block; }
+@media (max-width: 720px) {
+  .game-screen { --map-width: 48vw; min-height: 550px; }
+  .game-screen .flight-map { bottom: 86px; }
+  .flight-telemetry { flex-wrap: wrap; gap: 4px 7px; }
+  .game-screen .game-footer { right: var(--hud-edge); }
+  .game-screen[data-storm="true"] .landing-direction { bottom: auto; top: 47%; }
+  .result-grid { grid-template-columns: minmax(0, 1fr); }
+  .result-map-card { grid-row: 1; }
+}
+
+.storm-forecast {
+  position: absolute;
+  z-index: 8;
+  top: 78px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  width: max-content;
+  max-width: 92%;
+  padding: 5px 10px;
+  border: 1px solid #ffd287;
+  border-radius: 6px;
+  background: #382c20;
+  color: #ffe3aa;
+  font-size: 12px;
+  pointer-events: none;
+}
+@media (max-width: 720px) {
+  .storm-forecast { top: auto; bottom: 135px; }
+}
+
+.discovery-readout { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 12px; color: #d6e5ee; }
+.discovery-readout strong { color: #fff; font-size: 19px; font-variant-numeric: tabular-nums; }
+.discovery-readout small { font-size: 11px; font-weight: 600; color: #bfd1dd; }
+.exploration-panel .flight-telemetry dd { font-size: clamp(11px, 1.2vw, 15px); }
+.exploration-panel .flight-objective:empty { display: none; }
+.exploration-panel .flight-terrain-list li { background: transparent; padding-inline: 2px; }
+.exploration-panel .flight-terrain-list { border-top: 1px solid #ffffff26; padding-top: 5px; }
+
+.storm-alert-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: inset 0 0 58px 12px #b91f37;
+  opacity: .25;
+  animation: storm-alert-pulse 1.8s ease-in-out infinite;
+}
+.storm-alert-edge[data-paused="true"] { animation: none; }
+@keyframes storm-alert-pulse {
+  0%, 100% { opacity: .22; }
+  50% { opacity: .64; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .storm-alert-edge { animation: none; }
+}
+
+.game-screen[data-storm="true"] .landing-direction {
+  left: clamp(125px, var(--guide-x, 50%), calc(100% - 125px));
+  top: clamp(65px, var(--guide-y, 55%), calc(100% - 85px));
+  bottom: auto;
+  max-width: min(235px, 92%);
+  transform: translate(-50%, -50%);
+  z-index: 11;
+}
+.game-screen .flight-terrain-list[hidden] { display: none; }
+.flight-route-map .map-aircraft { fill: #f5ffff; stroke: #14334f; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.route-event { fill: #fff1cb; stroke: #673b22; stroke-width: 3px; paint-order: stroke; text-anchor: middle; font-weight: 800; vector-effect: non-scaling-stroke; }
+.route-event-storm { fill: #ffd287; }
+.result-discoveries { display: flex; flex-wrap: wrap; gap: 5px 12px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 11px; color: #b6f0cd; }
+.circuit-board { display: grid; grid-template-columns: auto minmax(0, 180px) auto; align-items: start; justify-content: center; gap: 5px; }
+.circuit-source, .circuit-target { color: #ffd287; font-size: 11px; padding-block: 10px; }
+.circuit-target { align-self: end; }
+.circuit-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+.circuit-tiles button { display: block; padding: 0; aspect-ratio: 1; border: 1px solid #829caf; border-radius: 3px; background: #122536; color: #9eb7c9; }
+.circuit-tiles button[data-powered="true"] { background: #173a33; color: #a4f0b6; }
+.circuit-tiles svg { display: block; width: 100%; stroke: currentColor; stroke-width: 4; fill: currentColor; }
+
+.game-screen[data-storm="true"] .landing-direction[data-in-view="false"] { top: 50%; }
+.game-screen[data-storm="true"] .landing-direction[data-in-view="false"][data-turn="left"] { left: max(115px, 12%); }
+.game-screen[data-storm="true"] .landing-direction[data-in-view="false"][data-turn="right"] { left: min(calc(100% - 115px), 88%); }
+.return-turn { display: none; }
+.landing-direction[data-in-view="false"] .return-approach { display: none; }
+.landing-direction[data-in-view="false"][data-turn="left"] .return-turn-left,
+.landing-direction[data-in-view="false"][data-turn="right"] .return-turn-right { display: inline; }
+.guide-details .guide-warning span { color: inherit; }
+
+.flight-route-map .recommended-map-halo {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  animation: map-ring-pulse 1.26s ease-in-out infinite;
+}
+.flight-route-map .recommended-map-marker { stroke: currentColor; stroke-width: 3px; }
+@keyframes map-ring-pulse {
+  0%, 100% { opacity: .28; }
+  50% { opacity: .95; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flight-route-map .recommended-map-halo { animation: none; opacity: .65; }
+}
