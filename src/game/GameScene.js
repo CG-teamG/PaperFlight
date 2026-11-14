@@ -102,7 +102,6 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       zones: environment.getZoneState(),
       storm,
       autoLanding: emergencyLanding !== null && !docked,
-      stormCountdown: storm || docked ? null : Math.max(0, Math.ceil(nextStorm - elapsed)),
       stormsResolved,
       ...flightPath.getSnapshot(),
       speed: flight.speed,
@@ -206,14 +205,14 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
   function applyStormWind(delta) {
     const gust = Math.sin(elapsed * 2.1)
     const strength = 0.6 + 0.4 * gust
-    const drift = Math.min(19, flight.speed * 0.58) * strength
+    const drift = Math.min(30, flight.speed * 0.85) * strength
     const sideGust = Math.sin(elapsed * 1.4) * 0.7
     airplane.position.x += drift * delta
     airplane.position.z += drift * sideGust * delta
-    airplane.rotateY(Math.sin(elapsed * 3.1) * strength * 0.58 * delta)
-    airplane.rotateX(Math.sin(elapsed * 4.3) * strength * 0.27 * delta)
+    airplane.rotateY(Math.sin(elapsed * 3.1) * strength * 0.98 * delta)
+    airplane.rotateX(Math.sin(elapsed * 4.3) * strength * 0.52 * delta)
     environment.setWind(18 + strength * 24, 8 + sideGust * 12)
-    return Math.sin(elapsed * 4.4) * strength * 0.52
+    return (Math.sin(elapsed * 4.4) * 0.72 + Math.sin(elapsed * 7.7) * 0.18) * strength
   }
 
   function stepFlight(delta) {

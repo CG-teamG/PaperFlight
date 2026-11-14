@@ -133,7 +133,7 @@ export class ExplorationMap {
         .map(({ x, y, z }) => new THREE.Vector3(x, (y ?? 0) * Y_SCALE, z)),
     );
     const center = bounds.getCenter(new THREE.Vector3());
-    const span = Math.max(480, bounds.getSize(new THREE.Vector3()).length());
+    const span = Math.max(1200, bounds.getSize(new THREE.Vector3()).length());
     this.controls.target.copy(center);
     this.camera.position.set(.6, 1, 1.25).multiplyScalar(span).add(center);
     this.camera.far = Math.max(this.camera.far, span * 8);
@@ -142,7 +142,7 @@ export class ExplorationMap {
     this.seaLevel.scale.set(span * 4, 1, span * 4);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 380;
+    this.controls.minDistance = 1200;
     this.controls.maxDistance = Math.max(4200 * worldScale, span * 4);
     this.controls.maxPolarAngle = Math.PI * 0.47;
     this.controls.enablePan = false;
@@ -155,9 +155,11 @@ export class ExplorationMap {
     window.addEventListener("resize", this._onResize);
 
     // 처음에는 천천히 저절로 돈다. 사용자가 만지면 잠시 멈췄다가 다시 돈다.
-    const loop = () => {
+    const loop = (now) => {
       if (this.disposed) return;
       this.raf = requestAnimationFrame(loop);
+      this.controls.autoRotate = now - this.lastInteract > 3500;
+      this.controls.autoRotateSpeed = 0.9;
       this.controls.update();
       this.renderer.render(this.scene, this.camera);
     };
@@ -257,7 +259,7 @@ export class ExplorationMap {
     const y = (x, z) => this._heightAt(x, z) * Y_SCALE;
 
     // 링: 통과한 링은 초록, 놓친 링은 속이 빈 회색
-    for (const r of this.live ? [] : rings.filter(({ passed }) => passed)) {
+    for (const r of this.live ? [] : rings) {
       const { x, y: ry, z } = r.position;
       const color = r.passed ? 0x5fe08a : 0xb8c4cc;
       const ring = new THREE.Mesh(
@@ -285,7 +287,7 @@ export class ExplorationMap {
     );
     pole.position.set(sx, sy + 60, sz);
     const flag = new THREE.Mesh(
-      new THREE.OctahedronGeometry(26),
+      new THREE.ConeGeometry(26, 60, 3).rotateZ(-Math.PI / 2),
       new THREE.MeshStandardMaterial({
         color: 0xffffff,
         emissive: 0x9fd8ff,
@@ -402,16 +404,6 @@ export class ExplorationMap {
       last.y + (last.y - prev.y),
       last.z + (last.z - prev.z) + 0.001,
     );
-    const endMarker = new THREE.Mesh(new THREE.BoxGeometry(30, 30, 30),
-      new THREE.MeshBasicMaterial({ color: 0xfff1d6, depthTest: false }));
-    endMarker.position.set(last.x, last.y + 32, last.z);
-    endMarker.renderOrder = 9;
-    this.group.add(endMarker);
-    this.eventHighlight = new THREE.Mesh(new THREE.SphereGeometry(23, 12, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, depthTest: false }));
-    this.eventHighlight.visible = false;
-    this.eventHighlight.renderOrder = 10;
-    this.group.add(this.eventHighlight);
     this.plane = plane;
     this.group.add(plane);
   }
@@ -451,10 +443,6 @@ export class ExplorationMap {
     if (!this.controls) return;
     const previous = this.controls.target.clone();
     this.controls.target.set(event.x, event.y * Y_SCALE, event.z);
-    if (this.eventHighlight) {
-      this.eventHighlight.position.copy(this.controls.target);
-      this.eventHighlight.visible = true;
-    }
     this.camera.position.add(this.controls.target.clone().sub(previous));
     this.lastInteract = performance.now();
     this.controls.update();
