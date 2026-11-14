@@ -19,8 +19,10 @@ import { EMERGENCY_LANDING_RADIUS, getLandingArrival, getFlightContact, isOutsid
 import { updateFollowCamera } from './FollowCamera.js'
 
 const FLIGHT_SPEED = 20
-const FIRST_STORM_INTERVAL = 75
-const STORM_INTERVAL = 55
+const FIRST_STORM_WINDOW = [55, 95]
+const REPEAT_STORM_WINDOW = [40, 75]
+
+const stormDelay = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1))
 const HUD_REFRESH_INTERVAL = 0.25
 const MAX_FLIGHT_STEP = 0.05
 const MAX_FRAME_TIME = 0.5
@@ -55,7 +57,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
   let storm = false
   let docked = false
   let departingLandingArea = false
-  let nextStorm = FIRST_STORM_INTERVAL
+  let nextStorm = stormDelay(FIRST_STORM_WINDOW)
   let stormsResolved = 0
   let recoveryReason = null
   let discovery = null
@@ -310,7 +312,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       storm = false
       stormsResolved += 1
       routeEvents.push({ type: 'repair', time: Math.floor(elapsed), x: airplane.position.x, y: airplane.position.y, z: airplane.position.z })
-      nextStorm = elapsed + STORM_INTERVAL
+      nextStorm = elapsed + stormDelay(REPEAT_STORM_WINDOW)
       environment.setStorm(false)
       environment.setWind(1, 0)
       outcome = 'landed'
@@ -345,7 +347,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       storm = false
       docked = false
       departingLandingArea = false
-      nextStorm = FIRST_STORM_INTERVAL
+      nextStorm = stormDelay(FIRST_STORM_WINDOW)
       stormsResolved = 0
       environment.setStorm(false)
       environment.setWind(1, 0)

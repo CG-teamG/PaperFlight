@@ -18,17 +18,7 @@
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
 
-@font-face {
-  font-family: 'PaperFlight Reatic';
-  src: local('REATIC Regular'), local('REATIC-Regular'), local('REATIC'), local('리틱체 Regular'), local('리틱체');
-  font-display: swap;
-}
-
 :root {
-  --game-font: 'PaperFlight Reatic', 'DM Sans', 'Noto Sans KR', sans-serif;
-  --sans: var(--game-font);
-  --heading: var(--game-font);
-  --mono: var(--game-font);
   font-family: var(--game-font);
   color: #ffffff;
   background: #172a38;

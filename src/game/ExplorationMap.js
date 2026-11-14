@@ -125,7 +125,7 @@ export class ExplorationMap {
     this.controls.target.set(0, 0, 0);
     const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const limitingHalfFov = Math.min(halfFov, Math.atan(Math.tan(halfFov) * this.camera.aspect));
-    const fitDistance = span * Math.SQRT1_2 / Math.sin(limitingHalfFov);
+    const fitDistance = span * 0.56 / Math.sin(limitingHalfFov);
     this.camera.position.set(1150, 1750, 2050).setLength(fitDistance);
     this.camera.far = Math.max(this.camera.far, fitDistance + span * 2);
     this.camera.updateProjectionMatrix();

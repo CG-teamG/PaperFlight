@@ -36,7 +36,7 @@ const FLIGHT_CONTROLS = [
   { keys: ['W', 'S'], label: '가속·감속' },
 ]
 const RECOVERY_MESSAGES = {
-  terrain: '지형 충돌로 최대 속도가 100 u/s로 돌아갔어요.',
+  terrain: '지형에 충돌했어요.',
   water: '수면에 닿았어요.',
 }
 
@@ -120,16 +120,23 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
         </div>
 
         <div className="flight-header-actions">
-          <button className="pause-button" onClick={onPause}>
+          <button className="pause-button" aria-label="일시정지 Esc" onClick={onPause}>
             <span className="pause-icon" aria-hidden="true">Ⅱ</span>
             <span>일시정지</span> <kbd>Esc</kbd>
           </button>
           <div className="flight-ring-score">
-            <span>링 점수</span>
-            <strong>{score.toLocaleString()}</strong>
-            {award && !storm && <span className="score-award" key={passedRings}>+{award.points}점{award.bonus > 0 && <small>속도 보너스 +{award.bonus}</small>}</span>}
+            <div className="flight-score-value">
+              <strong>{score.toLocaleString()}</strong>
+              <span>score</span>
+            </div>
+            <small className="ring-tally">통과한 링 {passedRings}/{totalRings}</small>
+            {award && !storm && (
+              <div className="score-award" role="status" key={passedRings}>
+                <span>+{award.points}점</span>
+                {award.bonus > 0 && <small>속도 보너스 +{award.bonus}</small>}
+              </div>
+            )}
           </div>
-          <small className="ring-tally">통과한 링 {passedRings}/{totalRings}</small>
         </div>
       </header>
 
@@ -138,10 +145,10 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
       </div>}
       <aside className="hud-panel exploration-panel" aria-label="비행 계기">
         <dl className="flight-telemetry">
-          <div><dt>현재 속도</dt><dd>{Math.floor(speed)} <small>u/s</small></dd></div>
-          <div><dt>최대 속도</dt><dd>{maxSpeed} <small>u/s</small></dd></div>
+          <div><dt>현재 속도</dt><dd><span>{Math.floor(speed)}</span> <small>u/s</small></dd></div>
+          <div><dt>최대 속도</dt><dd><span>{maxSpeed}</span> <small>u/s</small></dd></div>
         </dl>
-        {storm && <p className="survey-status">탐험·득점 일시 중지</p>}
+        {storm && <p className="survey-status">탐험 · 득점 일시 중지</p>}
       </aside>
       {!storm && outsideSurveyArea && <div className="survey-boundary" role="status">섬에서 멀어지고 있어요</div>}
       {!storm && discovery && elapsed - discovery.time < 3 && (
@@ -163,7 +170,9 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
         {recoveries > 0 && (
           <div className="ring-feedback-card recovery-feedback" key={`recovery-${recoveries}`}>
             <strong>{storm ? '안전 고도에서 귀환 재시도' : '출발 지점으로 복귀'}</strong>
-            <span>{RECOVERY_MESSAGES[recoveryReason]} 탐험 기록은 유지돼요.</span>
+            <span>{RECOVERY_MESSAGES[recoveryReason]}</span>
+            {recoveryReason === 'terrain' && <span>최대 속도를 100&nbsp;u/s로 초기화했어요.</span>}
+            <span>탐험 기록은 유지돼요.</span>
           </div>
         )}
 
@@ -199,7 +208,7 @@ function PauseScreen({ onResume, onRestart, onHome, onFinish, storm }) {
 
   return (
     <dialog
-      className="pause-modal"
+      className="pause-modal flight-pause"
       ref={modal}
       aria-labelledby="pause-title"
       onCancel={(event) => {
@@ -216,7 +225,7 @@ function PauseScreen({ onResume, onRestart, onHome, onFinish, storm }) {
         </button>
       </> : <>
         <p className="score-rules">{storm ? 'H 착륙장으로 귀환하세요.' : `링 기본 ${BASE_RING_POINTS}점 · 통과 속도에 따라 보너스`}</p>
-        <p className="pause-controls">↑↓ 고도 · ←→ 회전 · W 가속 · S 감속</p>
+        <p className="pause-controls">↑ ↓ 고도 · ←→ 회전 · W 가속 · S 감속</p>
         <button className="primary-button modal-primary" onClick={onResume}>{storm ? '비상 귀환 재개' : '비행 재개'}</button>
         {!storm && <button className="secondary-button" onClick={onFinish}>비행 마치고 결과 보기</button>}
         <div className="pause-exits">
@@ -282,10 +291,10 @@ function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
           <span>높은 고도</span>
         </div>
         <ul aria-label="지도 범례">
-          <li>출발 깃발</li>
+          <li>출발: 깃발</li>
           <li>H 착륙장</li>
-          <li>초록 링 · 통과</li>
-          <li>회색 링 · 미통과</li>
+          <li>초록 링: 통과</li>
+          <li>회색 링: 미통과</li>
         </ul>
       </div>
       <p className="result-map-help">드래그로 회전 · 휠로 확대/축소</p>
@@ -297,30 +306,21 @@ function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
 function ResultScreen({ progress, onRestart, onHome }) {
   const {
     score, ringPoints, landingPoints, passedRings, island, resultIsland, zones = [], exploration = 0, distance, stormsResolved, routeEvents,
-    path, recoveries, outcome, elapsed,
+    path, recoveries, elapsed,
   } = progress
   const discoveryCount = zones.filter(({ discovered }) => discovered).length
   const totalRegions = zones.length
-  const missionComplete = outcome === 'landed'
-  const earlyLanding = outcome === 'early-landing'
-
   return (
     <main className="result-screen">
       <div className="result-content">
         <div className="result-eyebrow">
           <span />
-          {missionComplete || earlyLanding ? '종료 사유 · 목표 위치 착륙' : '종료 사유 · 직접 종료'}
+          PaperFlight
           <span />
         </div>
 
-        <h1>{missionComplete ? '비행 기록' : earlyLanding ? '안전하게 귀환했어요' : '비행 기록'}</h1>
-        <p className="result-note">
-          {missionComplete
-            ? 'H에서 비행을 마쳤어요.'
-            : earlyLanding
-              ? '이번 비행에서 발견한 구역과 비행 경로를 확인하세요.'
-              : '자유 비행을 마쳤어요. 이번 조사 기록을 확인해 보세요.'}
-        </p>
+        <h1>비행 기록</h1>
+        <p className="result-note">안전하게 비행을 마쳤어요!</p>
 
         <div className="result-grid">
           <section className="result-score-card">
@@ -334,7 +334,7 @@ function ResultScreen({ progress, onRestart, onHome }) {
             <dl className="result-score-breakdown">
               <div><dt>링 통과 점수</dt><dd>{ringPoints.toLocaleString()}점</dd></div>
               <div><dt>착륙 보너스</dt><dd>{landingPoints.toLocaleString()}점</dd></div>
-                <div><dt>해결한 폭풍</dt><dd>{stormsResolved ?? 0}회</dd></div>
+              <div><dt>해결한 폭풍</dt><dd>{stormsResolved ?? 0}회</dd></div>
             </dl>
 
             <div className="result-divider" />
