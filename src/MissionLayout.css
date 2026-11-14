@@ -296,7 +296,15 @@ html, body, #root { min-height: 100%; }
 .result-screen .result-map-3d { height: 100%; min-height: 0; }
 .result-screen .result-actions { margin-top: clamp(6px, 2dvh, 16px); }
 .result-screen .result-actions button { min-height: clamp(34px, 8dvh, 58px); }
-.result-screen .flight-timeline h2 { color: #edf5ff; }
+.result-screen .flight-timeline h2 { color: #243647; }
+.result-screen { background: #e9e1d0; color: #243647; }
+.result-screen .result-content h1, .result-screen .result-eyebrow { color: #243647; }
+.result-screen .result-map-card, .result-screen .result-score-card { background: #f7f2e5; color: #243647; border-color: #b9b09c; }
+.result-screen .map-legend, .result-screen .result-map-help { color: #243647; }
+.result-screen .flight-events button, .result-actions .secondary-button { color: #243647; border-color: #748594; }
+.flight-events button[aria-pressed="true"] { background: #c6dfec; }
+.flight-timeline-axis i[data-event="storm"] { background: #ffa444; }
+.record-stats .total-score { font-weight: 800; }
 .game-screen .exploration-panel { min-width: max-content; }
 .game-screen .emergency-status, .game-screen .ring-feedback-card, .game-screen .ring-direction[data-target] {
   background: transparent; border: 0; box-shadow: none; color: #fff;

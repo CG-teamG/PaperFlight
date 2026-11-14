@@ -239,7 +239,7 @@ function PauseScreen({ onResume, onRestart, onHome, onFinish, storm }) {
 
 const EVENT_NAMES = { storm: '폭풍 발생', landing: 'H 착륙', repair: '복구 완료', takeoff: '재이륙', recovery: '충돌 후 복귀' }
 
-function FlightTimeline({ events, elapsed, onFocus }) {
+function FlightTimeline({ events, elapsed, onFocus, selectedEvent }) {
   return (
     <section className="flight-timeline" aria-label="비행 타임라인">
       <h2>비행 타임라인</h2>
@@ -252,7 +252,7 @@ function FlightTimeline({ events, elapsed, onFocus }) {
       {events.length > 0 && (
         <ol className="flight-events">
           {events.slice(-4).map((event, index) => (
-            <li key={index}><button className="secondary-button" data-event={event.type} onClick={() => onFocus(event)}>
+            <li key={index}><button className="secondary-button" data-event={event.type} aria-pressed={selectedEvent === event} onClick={() => onFocus(event)}>
               <time>{formatTime(event.time)}</time> {EVENT_NAMES[event.type]}
             </button></li>
           ))}
@@ -264,6 +264,7 @@ function FlightTimeline({ events, elapsed, onFocus }) {
 
 function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
   const container = useRef(null)
+  const [selectedEvent, setSelectedEvent] = useState(null)
   const resultMap = useRef(null)
   useEffect(() => {
     if (!island) return
@@ -275,7 +276,7 @@ function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
     <>
       <div className="flight-route-heading"><strong>전체 비행 경로</strong><span>이동 거리 {Math.round(distance).toLocaleString()} u</span></div>
       <div className="result-map-3d" ref={container} aria-label="3D 비행 경로 지도" />
-      <FlightTimeline events={routeEvents ?? []} elapsed={elapsed} onFocus={(event) => resultMap.current?.focusEvent(event)} />
+      <FlightTimeline events={routeEvents ?? []} elapsed={elapsed} selectedEvent={selectedEvent} onFocus={(event) => { setSelectedEvent(event); resultMap.current?.focusEvent(event) }} />
       <div className="map-legend">
         <div className="map-altitude">
           <span>낮은 고도</span>
@@ -286,8 +287,10 @@ function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
           <span>높은 고도</span>
         </div>
         <ul aria-label="지도 사건 표식">
-          <li><i className="map-event-storm" />폭풍 발생</li>
-          <li><i className="map-event-landing" />H 착륙</li>
+          <li>◇ 출발</li>
+          <li>■ 종료</li>
+          {routeEvents?.some(({ type }) => type === 'storm') && <li><i className="map-event-storm" />폭풍 발생</li>}
+          {routeEvents?.some(({ type }) => type === 'landing') && <li><i className="map-event-landing" />H 착륙</li>}
         </ul>
       </div>
       <p className="result-map-help">드래그로 회전 · 휠로 확대/축소</p>
@@ -298,7 +301,7 @@ function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
 // 결과 화면
 function ResultScreen({ progress, onRestart, onHome }) {
   const {
-    score, passedRings, island, resultIsland, zones = [], distance, stormsResolved, routeEvents,
+    score, ringPoints, landingPoints, passedRings, island, resultIsland, zones = [], distance, stormsResolved, routeEvents,
     path, recoveries, outcome, elapsed,
   } = progress
   const discoveryCount = zones.filter(({ discovered }) => discovered).length
@@ -323,7 +326,9 @@ function ResultScreen({ progress, onRestart, onHome }) {
             <dl className="record-stats">
               <div><dt>발견 구역</dt><dd>{discoveryCount}개</dd></div>
               <div><dt>비행 시간</dt><dd>{formatTime(elapsed)}</dd></div>
-              <div><dt>링 점수</dt><dd>{score.toLocaleString()}점 <small>· {passedRings}개 통과</small></dd></div>
+              <div><dt>링 점수</dt><dd>{ringPoints.toLocaleString()}점 <small>· {passedRings}개 통과</small></dd></div>
+              <div><dt>착륙 보너스</dt><dd>{landingPoints.toLocaleString()}점</dd></div>
+              <div className="total-score"><dt>총점</dt><dd>{score.toLocaleString()}점</dd></div>
               <div><dt>해결한 폭풍</dt><dd>{stormsResolved ?? 0}회</dd></div>
               {recoveries > 0 && <div><dt>충돌 후 복귀</dt><dd>{recoveries}회</dd></div>}
             </dl>
