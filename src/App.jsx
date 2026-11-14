@@ -136,7 +136,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
 
       {storm && <div className="storm-forecast emergency-status" data-active={!isPaused} role="status">
         <span className="game-icon" style={{ '--icon': `url(${stormIcon})` }} aria-hidden="true" />
-        <strong>폭풍 경보</strong> <span className="emergency-instruction">H로 돌아가세요</span>
+        <strong>비상 착륙</strong> <span className="emergency-instruction">H 착륙장으로 즉시 귀환</span>
       </div>}
       <aside className="hud-panel exploration-panel" aria-label="비행 계기">
         <dl className="flight-telemetry">
@@ -230,46 +230,50 @@ function PauseScreen({ onResume, onRestart, onHome, onFinish, storm }) {
   )
 }
 
-const EVENT_NAMES = { storm: '폭풍 발생', landing: 'H 착륙', repair: '복구 완료', takeoff: '재이륙', recovery: '충돌 후 복귀' }
+const FLIGHT_EVENTS = {
+  storm: { label: '폭풍 발생', color: '#ffa444' },
+  landing: { label: 'H 착륙', color: '#75eb9c' },
+  repair: { label: '복구 완료', color: '#ffe182' },
+  takeoff: { label: '재이륙', color: '#86d9ff' },
+  recovery: { label: '충돌 후 복귀', color: '#ff8d9b' },
+}
 
-function FlightTimeline({ events, elapsed, onFocus, selectedEvent }) {
+function FlightTimeline({ events, elapsed }) {
+  const types = Object.entries(FLIGHT_EVENTS).filter(([type]) => events.some((event) => event.type === type))
+
   return (
     <section className="flight-timeline" aria-label="비행 타임라인">
       <h2>비행 타임라인</h2>
-      <div className="flight-timeline-axis" aria-hidden="true">
+      <div className="flight-timeline-axis">
         <span>00:00</span><span>{formatTime(elapsed)}</span>
         {events.map((event, index) => (
-          <i key={index} data-event={event.type} style={{ left: (event.time / Math.max(1, elapsed)) * 100 + '%' }} />
+          <i key={index} role="img" aria-label={formatTime(event.time) + ' ' + FLIGHT_EVENTS[event.type].label}
+            style={{
+              left: Math.min(100, event.time / Math.max(1, elapsed) * 100) + '%',
+              backgroundColor: FLIGHT_EVENTS[event.type].color,
+              '--event-row': Object.keys(FLIGHT_EVENTS).indexOf(event.type),
+            }} />
         ))}
       </div>
-      {events.length > 0 && (
-        <ol className="flight-events">
-          {events.slice(-4).map((event, index) => (
-            <li key={index}><button className="secondary-button" data-event={event.type} aria-pressed={selectedEvent === event} onClick={() => onFocus(event)}>
-              <time>{formatTime(event.time)}</time> {EVENT_NAMES[event.type]}
-            </button></li>
-          ))}
-        </ol>
-      )}
+      {types.length > 0 && <ul className="timeline-legend" aria-label="타임라인 색상 범례">
+        {types.map(([type, { label, color }]) => <li key={type}><i style={{ backgroundColor: color }} />{label}</li>)}
+      </ul>}
     </section>
   )
 }
 
 function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
   const container = useRef(null)
-  const [selectedEvent, setSelectedEvent] = useState(null)
-  const resultMap = useRef(null)
   useEffect(() => {
     if (!island) return
-    const map = new ExplorationMap(THREE, OrbitControls, container.current, { ...island, zones, routeEvents }, path)
-    resultMap.current = map
-    return () => { map.dispose(); resultMap.current = null }
-  }, [island, zones, path, routeEvents])
+    const map = new ExplorationMap(THREE, OrbitControls, container.current, { ...island, zones }, path)
+    return () => map.dispose()
+  }, [island, zones, path])
   return (
     <>
       <div className="flight-route-heading"><strong>전체 비행 경로</strong><span>이동 거리 {Math.round(distance).toLocaleString()} u</span></div>
       <div className="result-map-3d" ref={container} aria-label="3D 비행 경로 지도" />
-      <FlightTimeline events={routeEvents ?? []} elapsed={elapsed} selectedEvent={selectedEvent} onFocus={(event) => { setSelectedEvent(event); resultMap.current?.focusEvent(event) }} />
+      <FlightTimeline events={routeEvents ?? []} elapsed={elapsed} />
       <div className="map-legend">
         <div className="map-altitude">
           <span>낮은 고도</span>
@@ -279,11 +283,11 @@ function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
           }} aria-hidden="true" />
           <span>높은 고도</span>
         </div>
-        <ul aria-label="지도 사건 표식">
-          <li>◇ 출발</li>
-          <li>■ 종료</li>
-          {routeEvents?.some(({ type }) => type === 'storm') && <li><i className="map-event-storm" />폭풍 발생</li>}
-          {routeEvents?.some(({ type }) => type === 'landing') && <li><i className="map-event-landing" />H 착륙</li>}
+        <ul aria-label="지도 범례">
+          <li>출발 깃발</li>
+          <li>H 착륙장</li>
+          <li>초록 링 · 통과</li>
+          <li>회색 링 · 미통과</li>
         </ul>
       </div>
       <p className="result-map-help">드래그로 회전 · 휠로 확대/축소</p>
