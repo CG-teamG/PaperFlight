@@ -15,7 +15,7 @@ import { configureRenderer, createEnvironment } from './Environment.js'
 import { FlightController, MAX_FLIGHT_SPEED } from './FlightController.js'
 import { createFlightPath } from './FlightPath.js'
 import { createFlightProgress } from './FlightProgress.js'
-import { EMERGENCY_LANDING_RADIUS, getEmergencyLandingPoint, getFlightContact, isOutsideSurveyArea } from './FlightRules.js'
+import { EMERGENCY_LANDING_RADIUS, getLandingPoint, getFlightContact, isOutsideSurveyArea } from './FlightRules.js'
 import { updateFollowCamera } from './FollowCamera.js'
 
 const FLIGHT_SPEED = 20
@@ -55,6 +55,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
   let storm = false
   let docked = false
   let emergencyLanding = null
+  let departingLandingArea = false
   let nextStorm = FIRST_STORM_INTERVAL
   let stormsResolved = 0
   let recoveryReason = null
@@ -101,7 +102,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       exploration: Math.round(environment.getExplorationRate() * 100),
       zones: environment.getZoneState(),
       storm,
-      autoLanding: emergencyLanding !== null && !docked,
+      autoLanding: Boolean(emergencyLanding && !docked),
       stormsResolved,
       ...flightPath.getSnapshot(),
       speed: flight.speed,
@@ -109,7 +110,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       recoveries,
       recoveryReason,
       discovery,
-      nearLanding: Math.hypot(airplane.position.x - environment.landingPad.position.x, airplane.position.z - environment.landingPad.position.z) <= EMERGENCY_LANDING_RADIUS,
+      nearLanding: !departingLandingArea && Math.hypot(airplane.position.x - environment.landingPad.position.x, airplane.position.z - environment.landingPad.position.z) <= EMERGENCY_LANDING_RADIUS,
       outsideSurveyArea: isOutsideSurveyArea(airplane.position, environment.mapSize),
       elapsed: Math.floor(elapsed),
       guidance,
@@ -138,7 +139,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     if (!ringDirection) return
 
     const guide = getGuide()
-    if (docked || (!storm && guide.kind !== 'ring')) {
+    if (docked || emergencyLanding || (!storm && guide.kind !== 'ring')) {
       ringDirection.hidden = true
       return
     }
@@ -236,14 +237,18 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     previousPosition.copy(airplane.position)
     flight.update(delta)
     const windBank = storm ? applyStormWind(delta) : 0
-    const landingPoint = storm && getEmergencyLandingPoint(environment.landingPad.position, airplane.position)
+    const pad = environment.landingPad.position
+    const landingPoint = departingLandingArea ? null : getLandingPoint(pad, previousPosition, airplane.position)
+    if (departingLandingArea && Math.hypot(airplane.position.x - pad.x, airplane.position.z - pad.z) > EMERGENCY_LANDING_RADIUS) {
+      departingLandingArea = false
+    }
     if (landingPoint) {
       emergencyLanding = {
         start: airplane.position.clone(),
         destination: new THREE.Vector3(landingPoint.x, landingPoint.y, landingPoint.z),
         elapsed: 0,
       }
-      airplane.lookAt(emergencyLanding.destination)
+      if (airplane.position.distanceToSquared(emergencyLanding.destination) > 0.01) airplane.lookAt(emergencyLanding.destination)
       airplaneModel.rotation.z = 0
       flightPath.update(airplane.position)
       flight.setInputEnabled(false)
@@ -251,19 +256,15 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       return
     }
     airplaneModel.rotation.z = THREE.MathUtils.damp(airplaneModel.rotation.z, -flight.turnInput * 0.35 + windBank, 8, delta)
-    const contact = getFlightContact(environment, previousPosition, airplane.position, flight.speed)
+    const contact = getFlightContact(environment, airplane.position)
     if (contact) airplane.position.copy(contact.position)
     flightPath.update(airplane.position)
     let snapshot
-    if (!storm && contact?.outcome !== 'recovered') {
+    if (!storm && !contact) {
       snapshot = progress.update(airplane.position, airplane.getWorldDirection(forward), flight.speed)
     }
 
-    if (contact?.outcome === 'landed') {
-      dock()
-      return
-    }
-    if (contact?.outcome === 'recovered') {
+    if (contact) {
       recoveries += 1
       recoveryReason = contact.reason
       if (contact.reason === 'terrain') flight.maxSpeed = MAX_FLIGHT_SPEED
@@ -305,7 +306,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     environment.update(delta, airplane.position, { survey: !storm && !isOutsideSurveyArea(airplane.position, environment.mapSize) })
     const found = environment.consumeDiscovered()
     if (found.length) {
-      discovery = { name: found.at(-1).name, count: environment.getZoneState().filter(({ discovered }) => discovered).length, time: Math.floor(elapsed) }
+      discovery = { name: found.at(-1).name, time: Math.floor(elapsed) }
       publishProgress()
     }
     render()
@@ -336,6 +337,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     },
     takeOff() {
       if (!docked || storm) return
+      departingLandingArea = true
       flight.maxSpeed += MAX_FLIGHT_SPEED
       docked = false
       emergencyLanding = null
@@ -362,6 +364,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
       storm = false
       docked = false
       emergencyLanding = null
+      departingLandingArea = false
       nextStorm = FIRST_STORM_INTERVAL
       stormsResolved = 0
       environment.setStorm(false)

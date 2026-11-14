@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
+import powerIcon from './assets/power-icon.svg'
 import { portsAt, traceCircuit } from './game/RepairCircuit.js'
 
 const DIRECTIONS = ['위', '오른쪽', '아래', '왼쪽']
@@ -25,7 +26,7 @@ export default function StormRepair({ repairRequired, maxSpeed, initialCircuit, 
   return (
     <dialog ref={dialog} className="pause-modal storm-repair" aria-labelledby="repair-title"
       onCancel={(event) => event.preventDefault()}>
-      <h2 id="repair-title">{repairRequired ? '방재 장치 복구' : repairOpened ? '폭풍 해소' : '착륙 완료'}</h2>
+      <h2 id="repair-title">{repairRequired && <img className="repair-icon" src={powerIcon} alt="" />}{repairRequired ? '방재 장치 복구' : repairOpened ? '폭풍 해소' : '착륙 완료'}</h2>
       {repairRequired ? (
         <>
           <p>조각을 눌러 90°씩 돌려 왼쪽 위 전원과 오른쪽 아래 방풍막을 연결하세요.</p>

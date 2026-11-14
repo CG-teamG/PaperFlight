@@ -327,3 +327,13 @@ html, body, #root { min-height: 100%; }
   .result-screen .result-score { font-size: 24px; margin-block: 2px; }
   .result-screen .result-divider { margin-block: 5px; }
 }
+.storm-repair { background: #142637; color: #eef6ff; border-color: #5a768e; }
+.storm-repair h2, .storm-repair p, .storm-repair .text-button, .storm-repair .secondary-button { color: #eef6ff; }
+.storm-repair .repair-icon { width: 1.1em; height: 1.1em; margin-right: .4em; vertical-align: -.16em; }
+.game-screen .emergency-status { display: flex; justify-content: center; align-items: center; gap: .35em; top: clamp(60px, 9dvh, 80px); bottom: auto; width: max-content; max-width: calc(100% - 24px); color: #ff626e; font-size: clamp(17px, 3vw, 32px); }
+.game-icon { width: 1em; height: 1em; background: currentColor; mask: var(--icon) center / contain no-repeat; }
+.emergency-status[data-active="true"] { animation: emergency-text-pulse 1.8s ease-in-out infinite; }
+@keyframes emergency-text-pulse { 50% { opacity: .48; } }
+@media (prefers-reduced-motion: reduce) {
+  .emergency-status[data-active="true"] { animation: none; }
+}

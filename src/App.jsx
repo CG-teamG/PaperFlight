@@ -23,8 +23,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { ExplorationMap } from './game/ExplorationMap.js'
 import { HEIGHT_COLOR } from './game/FlightTrail.js'
 import { EMPTY_FLIGHT_PROGRESS } from './game/FlightProgress.js'
-import { EMERGENCY_LANDING_HEIGHT, EMERGENCY_LANDING_RADIUS, LANDING_MAX_SPEED } from './game/FlightRules.js'
+import { EMERGENCY_LANDING_RADIUS } from './game/FlightRules.js'
 import { createGameScene } from './game/GameScene.js'
+import stormIcon from './assets/storm-icon.svg'
 import StormRepair from './StormRepair.jsx'
 import { createCircuit } from './game/RepairCircuit.js'
 import { BASE_RING_POINTS } from './game/RingSystem.js'
@@ -39,9 +40,6 @@ const FLIGHT_CONTROLS = [
 const RECOVERY_MESSAGES = {
   terrain: '지형 충돌로 최대 속도가 100 u/s로 돌아갔어요.',
   water: '수면에 닿았어요.',
-  speed: `착륙할 때는 ${LANDING_MAX_SPEED} u/s 이하로 감속하세요.`,
-  angle: '착륙장에는 더 완만한 각도로 접근하세요.',
-  'pad-edge': '착륙장 중앙을 향해 위에서 내려오세요.',
 }
 
 // 초 단위 시간을 00:00 형식으로 변환
@@ -137,8 +135,9 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
         </div>
       </header>
 
-      {storm && <div className="storm-forecast emergency-status" role="status">
-        {autoLanding ? '자동 착륙 중' : '비상 귀환 · H 착륙장으로 이동'}
+      {(storm || autoLanding) && <div className="storm-forecast emergency-status" data-active={storm && !autoLanding && !isPaused} role="status">
+        {storm && !autoLanding && <span className="game-icon" style={{ '--icon': `url(${stormIcon})` }} aria-hidden="true" />}
+        {autoLanding ? '자동 착륙 중' : '비상 귀환 · H 착륙장으로'}
       </div>}
       <aside className="hud-panel exploration-panel" aria-label="비행 계기">
         <dl className="flight-telemetry">
@@ -149,7 +148,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
       </aside>
       {!storm && outsideSurveyArea && <div className="survey-boundary" role="status">섬에서 멀어지고 있어요</div>}
       {!storm && discovery && elapsed - discovery.time < 3 && (
-        <div className="discovery-toast" role="status">새 구역 발견{discovery.name && ' · ' + discovery.name} · {discovery.count}개</div>
+        <div className="discovery-toast" role="status">새 구역 발견{discovery.name && ' · ' + discovery.name}</div>
       )}
 
       <div className={`ring-direction${storm ? ' landing-direction' : ''}`} ref={ringDirection} hidden>
@@ -157,15 +156,11 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
         {storm && guidance && <div className="guide-details">
           <strong>H 착륙장</strong>
           <span>{Math.round(guidance.distance).toLocaleString()} u</span>
-          {!autoLanding && guidance.distance <= EMERGENCY_LANDING_RADIUS && (
-            <span>{guidance.altitude > EMERGENCY_LANDING_HEIGHT
-              ? '↓ ' + EMERGENCY_LANDING_HEIGHT + ' u 이하로 하강'
-              : guidance.altitude <= 1 ? '↑ 고도를 조금 높이세요' : '자동 착륙 범위 진입'}</span>
-          )}
+          {guidance.distance <= EMERGENCY_LANDING_RADIUS && <span>자동 착륙 구역</span>}
         </div>}
       </div>
-      {!storm && progress.nearLanding && <div className="landing-tip">
-        H 착륙 · {speed > LANDING_MAX_SPEED ? 'S로 ' + LANDING_MAX_SPEED + ' u/s 이하로 감속' : '착륙장 중앙으로 완만하게 하강'}
+      {!storm && !autoLanding && progress.nearLanding && <div className="landing-tip">
+        H 착륙장 접근 중
       </div>}
 
       <div className="ring-feedback" role="status" aria-atomic="true">
