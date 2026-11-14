@@ -23,7 +23,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { ExplorationMap } from './game/ExplorationMap.js'
 import { HEIGHT_COLOR } from './game/FlightTrail.js'
 import { EMPTY_FLIGHT_PROGRESS } from './game/FlightProgress.js'
-import { EMERGENCY_LANDING_RADIUS } from './game/FlightRules.js'
 import { createGameScene } from './game/GameScene.js'
 import stormIcon from './assets/storm-icon.svg'
 import StormRepair from './StormRepair.jsx'
@@ -98,7 +97,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
   const {
     score, passedRings, totalRings,
     award, speed, maxSpeed = 100, recoveries, outsideSurveyArea,
-    elapsed, guidance, recoveryReason, storm, autoLanding,
+    elapsed, guidance, recoveryReason, storm,
   } = progress
   const [showControls, setShowControls] = useState(true)
   const discovery = progress.discovery
@@ -111,7 +110,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
   return (
     <main className="game-screen" data-storm={storm}>
       <div className="flight-scene" ref={sceneContainer} />
-      {storm && <div className="storm-alert-edge" data-paused={isPaused || autoLanding} aria-hidden="true" />}
+      {storm && <div className="storm-alert-edge" data-paused={isPaused} aria-hidden="true" />}
       {/* 상단 UI */}
       <header className="game-header">
         <Logo />
@@ -135,9 +134,9 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
         </div>
       </header>
 
-      {(storm || autoLanding) && <div className="storm-forecast emergency-status" data-active={storm && !autoLanding && !isPaused} role="status">
-        {storm && !autoLanding && <span className="game-icon" style={{ '--icon': `url(${stormIcon})` }} aria-hidden="true" />}
-        {autoLanding ? '자동 착륙 중' : '비상 귀환 · H 착륙장으로'}
+      {storm && <div className="storm-forecast emergency-status" data-active={!isPaused} role="status">
+        <span className="game-icon" style={{ '--icon': `url(${stormIcon})` }} aria-hidden="true" />
+        <strong>폭풍 경보</strong> <span className="emergency-instruction">H로 돌아가세요</span>
       </div>}
       <aside className="hud-panel exploration-panel" aria-label="비행 계기">
         <dl className="flight-telemetry">
@@ -156,10 +155,9 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
         {storm && guidance && <div className="guide-details">
           <strong>H 착륙장</strong>
           <span>{Math.round(guidance.distance).toLocaleString()} u</span>
-          {guidance.distance <= EMERGENCY_LANDING_RADIUS && <span>자동 착륙 구역</span>}
         </div>}
       </div>
-      {!storm && !autoLanding && progress.nearLanding && <div className="landing-tip">
+      {!storm && progress.nearLanding && <div className="landing-tip">
         H 착륙장 접근 중
       </div>}
 

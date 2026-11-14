@@ -333,7 +333,8 @@ html, body, #root { min-height: 100%; }
 .game-screen .emergency-status { display: flex; justify-content: center; align-items: center; gap: .35em; top: clamp(60px, 9dvh, 80px); bottom: auto; width: max-content; max-width: calc(100% - 24px); color: #ff626e; font-size: clamp(17px, 3vw, 32px); }
 .game-icon { width: 1em; height: 1em; background: currentColor; mask: var(--icon) center / contain no-repeat; }
 .emergency-status[data-active="true"] { animation: emergency-text-pulse 1.8s ease-in-out infinite; }
-@keyframes emergency-text-pulse { 50% { opacity: .48; } }
+@keyframes emergency-text-pulse { 50% { opacity: .64; } }
+.emergency-instruction { margin-left: .3em; color: #fff2eb; font-size: .55em; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   .emergency-status[data-active="true"] { animation: none; }
 }
