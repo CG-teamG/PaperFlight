@@ -1,7 +1,8 @@
+import { RINGS_PER_TERRAIN } from './Environment.js'
 import { BASE_RING_POINTS, RingSystem } from './RingSystem.js'
 
 export const LANDING_BONUS_POINTS = 500
-export const DISCOVERY_RING_TARGET = 2
+export const DISCOVERY_RING_TARGET = RINGS_PER_TERRAIN
 
 export const EMPTY_FLIGHT_PROGRESS = Object.freeze({
   score: 0,
