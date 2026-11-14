@@ -240,8 +240,8 @@ html, body, #root { min-height: 100%; }
   .result-actions button { min-width: 0; }
 }
 .result-screen .result-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-.result-screen .result-map-card { grid-row: 1; }
-.result-screen .result-score-card { padding: 10px 18px; }
+.result-screen .result-map-card { grid-column: 2; grid-row: 1; }
+.result-screen .result-score-card { grid-column: 1; grid-row: 1; padding: clamp(8px, 2dvh, 20px); }
 .record-stats { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
 .record-stats div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
 .record-stats dt { font-size: .8rem; opacity: .75; }
@@ -290,21 +290,13 @@ html, body, #root { min-height: 100%; }
 .start-screen, .result-screen { height: 100%; min-height: 0; }
 .start-screen { padding-block: clamp(8px, 3dvh, 34px); }
 .result-screen { padding-block: clamp(6px, 2dvh, 20px); }
-.result-screen .result-content { height: 100%; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; }
-.result-screen .result-grid { min-height: 0; grid-template-rows: minmax(0, 1fr) auto; }
+.result-screen .result-content { height: 100%; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+.result-screen .result-grid { min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr); grid-template-rows: minmax(0, 1fr); }
 .result-screen .result-map-card { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto; min-height: 0; padding: clamp(8px, 2dvh, 20px); }
 .result-screen .result-map-3d { height: 100%; min-height: 0; }
 .result-screen .result-actions { margin-top: clamp(6px, 2dvh, 16px); }
 .result-screen .result-actions button { min-height: clamp(34px, 8dvh, 58px); }
-.result-screen .flight-timeline h2 { color: #243647; }
-.result-screen { background: #e9e1d0; color: #243647; }
-.result-screen .result-content h1, .result-screen .result-eyebrow { color: #243647; }
-.result-screen .result-map-card, .result-screen .result-score-card { background: #f7f2e5; color: #243647; border-color: #b9b09c; }
-.result-screen .map-legend, .result-screen .result-map-help { color: #243647; }
-.result-screen .flight-events button, .result-actions .secondary-button { color: #243647; border-color: #748594; }
-.flight-events button[aria-pressed="true"] { background: #c6dfec; }
-.flight-timeline-axis i[data-event="storm"] { background: #ffa444; }
-.record-stats .total-score { font-weight: 800; }
+.result-screen .flight-timeline h2 { color: #edf5ff; }
 .game-screen .exploration-panel { min-width: max-content; }
 .game-screen .emergency-status, .game-screen .ring-feedback-card, .game-screen .ring-direction[data-target] {
   background: transparent; border: 0; box-shadow: none; color: #fff;
@@ -326,4 +318,12 @@ html, body, #root { min-height: 100%; }
   .pause-modal { padding: 12px; }
   .storm-repair p { margin-block: 5px; }
   .circuit-board { max-width: 190px; margin-inline: auto; }
+}
+
+@media (max-width: 720px) {
+  .result-screen .result-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .result-screen .result-score-card { grid-column: 1; grid-row: 1; }
+  .result-screen .result-map-card { grid-column: 1; grid-row: 2; }
+  .result-screen .result-score { font-size: 24px; margin-block: 2px; }
+  .result-screen .result-divider { margin-block: 5px; }
 }

@@ -301,37 +301,72 @@ function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
 // 결과 화면
 function ResultScreen({ progress, onRestart, onHome }) {
   const {
-    score, ringPoints, landingPoints, passedRings, island, resultIsland, zones = [], distance, stormsResolved, routeEvents,
+    score, ringPoints, landingPoints, passedRings, island, resultIsland, zones = [], exploration = 0, distance, stormsResolved, routeEvents,
     path, recoveries, outcome, elapsed,
   } = progress
   const discoveryCount = zones.filter(({ discovered }) => discovered).length
-  const landed = outcome === 'landed' || outcome === 'early-landing'
+  const totalRegions = zones.length
+  const missionComplete = outcome === 'landed'
+  const earlyLanding = outcome === 'early-landing'
 
   return (
     <main className="result-screen">
       <div className="result-content">
         <div className="result-eyebrow">
           <span />
-          {landed ? 'H 착륙장에서 종료' : '비행 중 종료'}
+          {missionComplete || earlyLanding ? '종료 사유 · 목표 위치 착륙' : '종료 사유 · 직접 종료'}
           <span />
         </div>
 
-        <h1>비행 기록</h1>
+        <h1>{missionComplete ? '비행 기록' : earlyLanding ? '안전하게 귀환했어요' : '비행 기록'}</h1>
+        <p className="result-note">
+          {missionComplete
+            ? 'H에서 비행을 마쳤어요.'
+            : earlyLanding
+              ? '이번 비행에서 발견한 구역과 비행 경로를 확인하세요.'
+              : '자유 비행을 마쳤어요. 이번 조사 기록을 확인해 보세요.'}
+        </p>
 
         <div className="result-grid">
+          <section className="result-score-card">
+            <span className="result-card-label">총점</span>
+
+            <div className="result-score">
+              {score.toLocaleString()}
+              <span>점</span>
+            </div>
+
+            <dl className="result-score-breakdown">
+              <div><dt>링 통과 점수</dt><dd>{ringPoints.toLocaleString()}점</dd></div>
+              <div><dt>착륙 보너스</dt><dd>{landingPoints.toLocaleString()}점</dd></div>
+                <div><dt>해결한 폭풍</dt><dd>{stormsResolved ?? 0}회</dd></div>
+            </dl>
+
+            <div className="result-divider" />
+
+            <div className="result-stats">
+              <div>
+                <span>링 통과</span>
+                <strong>{passedRings}<small>개</small></strong>
+              </div>
+
+              <div>
+                <span>탐험률 {exploration}%</span>
+                <strong>{discoveryCount}<small> / {totalRegions}</small></strong>
+              </div>
+
+              <div>
+                <span>비행 시간</span>
+                <strong>{formatTime(elapsed)}</strong>
+              </div>
+              <div>
+                <span>복귀</span>
+                <strong>{recoveries}<small>회</small></strong>
+              </div>
+            </div>
+          </section>
           <section className="result-map-card">
             <ResultMap island={resultIsland ?? island} zones={zones} path={path} routeEvents={routeEvents} distance={distance} elapsed={elapsed} />
-          </section>
-          <section className="result-score-card" aria-label="비행 요약">
-            <dl className="record-stats">
-              <div><dt>발견 구역</dt><dd>{discoveryCount}개</dd></div>
-              <div><dt>비행 시간</dt><dd>{formatTime(elapsed)}</dd></div>
-              <div><dt>링 점수</dt><dd>{ringPoints.toLocaleString()}점 <small>· {passedRings}개 통과</small></dd></div>
-              <div><dt>착륙 보너스</dt><dd>{landingPoints.toLocaleString()}점</dd></div>
-              <div className="total-score"><dt>총점</dt><dd>{score.toLocaleString()}점</dd></div>
-              <div><dt>해결한 폭풍</dt><dd>{stormsResolved ?? 0}회</dd></div>
-              {recoveries > 0 && <div><dt>충돌 후 복귀</dt><dd>{recoveries}회</dd></div>}
-            </dl>
           </section>
         </div>
 
