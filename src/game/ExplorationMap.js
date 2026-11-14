@@ -16,15 +16,11 @@ import { createAirplane } from "./Airplane.js";
 import { FlightTrail, createHeightColorFn } from "./FlightTrail.js";
 import { createPadTexture } from "./padTexture.js";
 
+import { EMERGENCY_LANDING_RADIUS } from "./FlightRules.js";
+
 const Y_SCALE = 1.7; // 높이 과장: 축소하면 산이 납작해 보이므로 키운다
-const SEA_COLOR = 0x2f86c4;
 
 const lerp = (a, b, t) => a + (b - a) * t;
-const smooth = (a, b, x) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-
 // 게임 셰이더(Environment.js의 revealColor)와 같은 공식: rev 0 = 어두운 회색조, 1 = 원래 색
 function revealColor(r, g, b, rev, out) {
   let gray = r * 0.299 + g * 0.587 + b * 0.114;
@@ -37,24 +33,26 @@ function revealColor(r, g, b, rev, out) {
 }
 
 export class ExplorationMap {
-  constructor(THREE, OrbitControls, container, data, trailPoints = []) {
+  constructor(THREE, OrbitControls, container, data, trailPoints = [], { live = false } = {}) {
     this.THREE = THREE;
+    this.live = live;
     this.container = container;
     this.data = data;
     this.disposed = false;
     this.lastInteract = -1e9;
 
-    const W = Math.max(200, container.clientWidth);
-    const H = Math.max(200, container.clientHeight);
+    const W = Math.max(1, container.clientWidth);
+    const H = Math.max(1, container.clientHeight);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, live ? 1 : 2));
     this.renderer.setSize(W, H);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(34, W / H, 100, 12000); // near를 키워 멀리서도 깊이 값이 정확하도록 (겹친 면 깜빡임 방지)
-    this.camera.position.set(1150, 1750, 2050);
+    const worldScale = data.mapSize / 2000;
+    this.camera.position.set(1150, 1750, 2050).multiplyScalar(worldScale);
 
     this.scene.add(new THREE.HemisphereLight(0xdcecff, 0x4a4036, 1.35));
     const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
@@ -65,22 +63,87 @@ export class ExplorationMap {
     this.scene.add(this.group);
 
     this._buildTerrain();
-    this._buildSea();
+    if (!live) this.scene.background = new THREE.Color(0x29384b);
+    this.visibleZones = new Set();
+    this._showTerrain(data.zones ?? []);
+    this.seaLevel = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x536579, colorWrite: !live }));
+    if (live) {
+      this.seaLevel.renderOrder = -1;
+      this.seaLevel.scale.set(data.mapSize * 2, 1, data.mapSize * 2);
+    }
+    this.seaLevel.position.y = 1;
+    this.group.add(this.seaLevel);
     this._buildMarkers();
-    this._buildTrail(trailPoints);
-    for (const event of data.routeEvents ?? []) {
+    if (live) {
+      const { x, y, z } = data.landing;
+      const radius = EMERGENCY_LANDING_RADIUS;
+      this.approachZone = new THREE.Mesh(new THREE.RingGeometry(radius - 6, radius, 48),
+        new THREE.MeshBasicMaterial({ color: 0xffc969, side: THREE.DoubleSide, depthTest: false }));
+      this.approachZone.rotation.x = -Math.PI / 2;
+      this.approachZone.position.set(x, y * Y_SCALE + 8, z);
+      this.approachZone.renderOrder = 5;
+      this.approachZone.visible = false;
+      this.group.add(this.approachZone);
+      const zoneSize = data.mapSize / Math.sqrt(data.zones.length);
+      this.discoveryOutline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(
+        [[-1,-1], [1,-1], [1,1], [-1,1]].map(([x,z]) => new THREE.Vector3(x * zoneSize / 2, 0, z * zoneSize / 2))),
+        new THREE.LineBasicMaterial({ color: 0xa8ffc8, depthTest: false }));
+      this.discoveryOutline.renderOrder = 8;
+      this.discoveryOutline.visible = false;
+      this.group.add(this.discoveryOutline);
+      this.seenZones = new Set();
+    }
+    if (live) {
+      this.camera.position.set(0, 3150, 1700).multiplyScalar(worldScale);
+      this.liveTrail = new FlightTrail(THREE, { maxPoints: 512, radius: 8, fog: false });
+      this.group.add(this.liveTrail.mesh);
+      this.aircraft = new THREE.Mesh(new THREE.ConeGeometry(25, 75, 3), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
+      this.aircraft.rotation.x = -Math.PI / 2;
+      this.aircraft.renderOrder = 6;
+      this.aircraft.visible = false;
+      this.aircraftHeading = new THREE.Group();
+      this.aircraftHeading.add(this.aircraft);
+      this.group.add(this.aircraftHeading);
+      this.ringTarget = new THREE.Mesh(new THREE.TorusGeometry(47, 7, 8, 28), new THREE.MeshBasicMaterial({ color: data.activeRingColor, depthTest: false }));
+      this.ringHalo = new THREE.Mesh(new THREE.TorusGeometry(64, 4, 8, 28), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false, depthWrite: false }));
+      this.ringTarget.add(this.ringHalo);
+      this.ringTarget.renderOrder = this.ringHalo.renderOrder = 7;
+      this.ringTarget.visible = false;
+      this.group.add(this.ringTarget);
+      this.camera.lookAt(0, 90, 0);
+    } else {
+      this._buildTrail(trailPoints);
+    }
+    for (const event of (data.routeEvents ?? []).filter(({ type }) => type === "storm" || type === "landing")) {
       const marker = new THREE.Mesh(new THREE.SphereGeometry(15, 12, 8),
         new THREE.MeshBasicMaterial({ color: event.type === "storm" ? 0xffa444 : 0x75eb9c }));
       marker.position.set(event.x, (event.y ?? this._heightAt(event.x, event.z)) * Y_SCALE + 15, event.z);
       this.group.add(marker);
     }
 
+    if (live) {
+      this.resizeObserver = new ResizeObserver(() => this.resize());
+      this.resizeObserver.observe(container);
+      return;
+    }
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 150, 0); // 높이 올라간 궤적도 화면에 들어오도록 약간 위를 본다
+    const bounds = new THREE.Box3().setFromPoints(
+      [data.start, ...trailPoints]
+        .map(({ x, y, z }) => new THREE.Vector3(x, (y ?? 0) * Y_SCALE, z)),
+    );
+    const center = bounds.getCenter(new THREE.Vector3());
+    const span = Math.max(1200, bounds.getSize(new THREE.Vector3()).length());
+    this.controls.target.copy(center);
+    this.camera.position.set(.6, 1, 1.25).multiplyScalar(span).add(center);
+    this.camera.far = Math.max(this.camera.far, span * 8);
+    this.camera.updateProjectionMatrix();
+    this.seaLevel.position.set(center.x, 1, center.z);
+    this.seaLevel.scale.set(span * 4, 1, span * 4);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.minDistance = 1200;
-    this.controls.maxDistance = 4200;
+    this.controls.maxDistance = Math.max(4200 * worldScale, span * 4);
     this.controls.maxPolarAngle = Math.PI * 0.47;
     this.controls.enablePan = false;
     this.controls.addEventListener("start", () => {
@@ -121,27 +184,6 @@ export class ExplorationMap {
   }
 
   // 공개 정도 (월드 x, z → 0~1)
-  _revealAt(x, z) {
-    const { reveal, mapSize } = this.data;
-    const n = reveal.size;
-    const u = ((x + mapSize / 2) / mapSize) * n - 0.5;
-    const v = ((z + mapSize / 2) / mapSize) * n - 0.5;
-    const i0 = Math.floor(u);
-    const j0 = Math.floor(v);
-    const fu = u - i0;
-    const fv = v - j0;
-    const at = (j, i) =>
-      reveal.data[
-        Math.min(n - 1, Math.max(0, j)) * n + Math.min(n - 1, Math.max(0, i))
-      ];
-    const r = lerp(
-      lerp(at(j0, i0), at(j0, i0 + 1), fu),
-      lerp(at(j0 + 1, i0), at(j0 + 1, i0 + 1), fu),
-      fv,
-    );
-    return smooth(0.08, 0.92, r);
-  }
-
   _buildTerrain() {
     const THREE = this.THREE;
     const { grid, heights, colors, mapSize } = this.data;
@@ -160,7 +202,7 @@ export class ExplorationMap {
           colors[k * 3],
           colors[k * 3 + 1],
           colors[k * 3 + 2],
-          this._revealAt(x, z),
+          1,
           tmp,
         );
         vcolors.set(tmp, k * 3);
@@ -188,63 +230,27 @@ export class ExplorationMap {
     this.group.add(this.terrain);
   }
 
-  // 바다: 투명한 수면(공개 상태에 따라 색이 달라짐) + 옆면이 보이는 물 덩어리(디오라마 느낌)
-  _buildSea() {
-    const THREE = this.THREE;
-    const { mapSize } = this.data;
-    const SEG = 64;
-    const surf = new THREE.PlaneGeometry(mapSize, mapSize, SEG, SEG).rotateX(
-      -Math.PI / 2,
-    );
-    const p = surf.attributes.position;
-    const cols = new Float32Array(p.count * 3);
-    const base = new THREE.Color(SEA_COLOR);
-    const tmp = [0, 0, 0];
-    for (let k = 0; k < p.count; k++) {
-      revealColor(
-        base.r,
-        base.g,
-        base.b,
-        this._revealAt(p.getX(k), p.getZ(k)),
-        tmp,
-      );
-      cols.set(tmp, k * 3);
+  _showTerrain(zones) {
+    const known = new Set(zones.filter(({ discovered }) => discovered).map(({ id }) => id));
+    if (known.size !== this.visibleZones.size || [...known].some((id) => !this.visibleZones.has(id))) {
+      const { grid } = this.data;
+      const cols = Math.sqrt(this.data.zones.length);
+      const index = [];
+      for (let j = 0; j < grid - 1; j++) {
+        for (let i = 0; i < grid - 1; i++) {
+          const row = Math.floor((j + .5) * cols / (grid - 1));
+          const col = Math.floor((i + .5) * cols / (grid - 1));
+          if (!known.has(row * cols + col + 1)) continue;
+          const a = j * grid + i;
+          index.push(a, a + grid, a + 1, a + 1, a + grid, a + grid + 1);
+        }
+      }
+      this.terrain.geometry.dispose();
+      this.terrain.geometry.setIndex(index);
+      this.visibleZones = known;
     }
-    surf.setAttribute("color", new THREE.BufferAttribute(cols, 3));
-    const water = new THREE.Mesh(
-      surf,
-      new THREE.MeshStandardMaterial({
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.62,
-        roughness: 0.25,
-        depthWrite: false,
-      }),
-    );
-    water.position.y = 0.5;
-    water.renderOrder = 1;
-    this.group.add(water);
+    this.terrain.visible = known.size > 0;
 
-    const depth = 90;
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(mapSize, depth, mapSize),
-      new THREE.MeshStandardMaterial({
-        color: 0x1c5a86,
-        transparent: true,
-        opacity: 0.5,
-        depthWrite: false,
-      }),
-    );
-    body.position.y = -depth / 2 - 1;
-    body.renderOrder = 0;
-    this.group.add(body);
-
-    const base2 = new THREE.Mesh(
-      new THREE.BoxGeometry(mapSize + 60, 36, mapSize + 60),
-      new THREE.MeshStandardMaterial({ color: 0x0f1f2c, roughness: 0.9 }),
-    );
-    base2.position.y = -depth - 20;
-    this.group.add(base2);
   }
 
   _buildMarkers() {
@@ -253,7 +259,7 @@ export class ExplorationMap {
     const y = (x, z) => this._heightAt(x, z) * Y_SCALE;
 
     // 링: 통과한 링은 초록, 놓친 링은 속이 빈 회색
-    for (const r of rings) {
+    for (const r of this.live ? [] : rings) {
       const { x, y: ry, z } = r.position;
       const color = r.passed ? 0x5fe08a : 0xb8c4cc;
       const ring = new THREE.Mesh(
@@ -289,7 +295,13 @@ export class ExplorationMap {
       }),
     );
     flag.position.set(sx + 30, sy + 100, sz);
-    this.group.add(pole, flag);
+    if (!this.live) this.group.add(pole, flag);
+    else {
+      pole.geometry.dispose();
+      pole.material.dispose();
+      flag.geometry.dispose();
+      flag.material.dispose();
+    }
 
     // 착륙 지점: 게임 속과 같은 "H" 패드 + 멀리서도 보이는 밝은 빛기둥 (시작 깃발과 같은 계열의 빛기둥)
     const ly = y(landing.x, landing.z);
@@ -332,7 +344,14 @@ export class ExplorationMap {
     padBeam.position.set(landing.x, ly + 210, landing.z);
     const startBeam = beacon(0x9fe8ff, 300); // 시작 지점은 하늘색 빛기둥
     startBeam.position.set(sx, sy + 150, sz);
-    this.group.add(rim, pad, padBeam, startBeam);
+    this.group.add(rim, pad);
+    if (!this.live) this.group.add(padBeam, startBeam);
+    else {
+      padBeam.geometry.dispose();
+      padBeam.material.dispose();
+      startBeam.geometry.dispose();
+      startBeam.material.dispose();
+    }
   }
 
   // 비행 궤적: 높이에 따라 색이 달라진다 (낮을수록 밝은 하늘색, 높을수록 어두운 남색)
@@ -389,19 +408,62 @@ export class ExplorationMap {
     this.group.add(plane);
   }
 
+  updateFlight(path, heading, target, elapsed, landingZone, zones) {
+    const last = path.at(-1);
+    this._showTerrain(zones);
+    for (const zone of zones) {
+      if (!zone.discovered || this.seenZones.has(zone.id)) continue;
+      this.seenZones.add(zone.id);
+      const { row, col } = this.data.zones[zone.id - 1];
+      const size = this.data.mapSize / Math.sqrt(this.data.zones.length);
+      this.discoveryOutline.position.set((col + .5) * size - this.data.mapSize / 2, 15,
+        (row + .5) * size - this.data.mapSize / 2);
+      this.discoveryUntil = elapsed + 2;
+    }
+    this.discoveryOutline.visible = elapsed < this.discoveryUntil;
+    this.approachZone.visible = landingZone;
+    const heightColor = createHeightColorFn(this.THREE);
+    this.liveTrail.setPoints(path.map((point) => ({ ...point, y: point.y * Y_SCALE })),
+      (_, out, point) => heightColor(point.y / Y_SCALE, out));
+    this.aircraft.visible = Boolean(last);
+    if (last) {
+      this.aircraftHeading.position.set(last.x, last.y * Y_SCALE, last.z);
+      this.aircraftHeading.rotation.y = -heading * Math.PI / 180;
+    }
+    this.ringTarget.visible = Boolean(target);
+    if (target) {
+      this.ringTarget.position.set(target.x, target.y * Y_SCALE, target.z);
+      this.ringTarget.quaternion.copy(this.camera.quaternion);
+      this.ringHalo.material.opacity = .55 + .35 * Math.sin(elapsed * 5);
+    }
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  focusEvent(event) {
+    if (!this.controls) return;
+    const previous = this.controls.target.clone();
+    this.controls.target.set(event.x, event.y * Y_SCALE, event.z);
+    this.camera.position.add(this.controls.target.clone().sub(previous));
+    this.lastInteract = performance.now();
+    this.controls.update();
+  }
+
   resize() {
-    const W = Math.max(200, this.container.clientWidth);
-    const H = Math.max(200, this.container.clientHeight);
+    const W = Math.max(1, this.container.clientWidth);
+    const H = Math.max(1, this.container.clientHeight);
     this.renderer.setSize(W, H);
     this.camera.aspect = W / H;
     this.camera.updateProjectionMatrix();
+    if (this.live) this.renderer.render(this.scene, this.camera);
   }
 
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
-    window.removeEventListener("resize", this._onResize);
-    this.controls.dispose();
+    if (this._onResize) window.removeEventListener("resize", this._onResize);
+    this.resizeObserver?.disconnect();
+    this.controls?.dispose();
+    this.liveTrail?.dispose();
     this.trail?.dispose();
     this.shadow?.dispose();
     this.padTex?.dispose();

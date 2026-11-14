@@ -5,10 +5,12 @@ import { portsAt, traceCircuit } from './game/RepairCircuit.js'
 const DIRECTIONS = ['위', '오른쪽', '아래', '왼쪽']
 const ENDPOINTS = [[16, 0], [32, 16], [16, 32], [0, 16]]
 
-export default function StormRepair({ repairRequired, initialCircuit, onNewCircuit, onRepair, onTakeOff, onFinish }) {
+export default function StormRepair({ repairRequired, maxSpeed, initialCircuit, onNewCircuit, onRepair, onTakeOff, onFinish }) {
   const dialog = useRef(null)
   const [circuit, setCircuit] = useState(initialCircuit)
   const { powered, complete } = traceCircuit(circuit)
+  const [repairOpened] = useState(repairRequired)
+  const takeOffButton = useRef(null)
 
   useEffect(() => {
     const modal = dialog.current
@@ -16,13 +18,17 @@ export default function StormRepair({ repairRequired, initialCircuit, onNewCircu
     return () => modal.close()
   }, [])
 
+  useEffect(() => {
+    if (!repairRequired) takeOffButton.current?.focus()
+  }, [repairRequired])
+
   return (
     <dialog ref={dialog} className="pause-modal storm-repair" aria-labelledby="repair-title"
       onCancel={(event) => event.preventDefault()}>
-      <h2 id="repair-title">{repairRequired ? '방재 장치 복구' : complete ? '폭풍 해소' : '착륙 완료'}</h2>
+      <h2 id="repair-title">{repairRequired ? '방재 장치 복구' : repairOpened ? '폭풍 해소' : '착륙 완료'}</h2>
       {repairRequired ? (
         <>
-          <p>회로 조각을 눌러 90°씩 돌리세요. 왼쪽 위 전원에서 오른쪽 아래 방풍막까지 연결하면 복구할 수 있어요.</p>
+          <p>조각을 눌러 90°씩 돌려 왼쪽 위 전원과 오른쪽 아래 방풍막을 연결하세요.</p>
           <div className="circuit-board" role="group" aria-label="방재 장치 회로">
             <span className="circuit-source">전원 →</span>
             <div className="circuit-tiles">
@@ -44,14 +50,14 @@ export default function StormRepair({ repairRequired, initialCircuit, onNewCircu
             </div>
             <span className="circuit-target">→ 방풍막</span>
           </div>
-          <p role="status">{complete ? '회로 연결 완료' : '연결된 회로에 초록색 불이 들어와요.'}</p>
+          <p role="status">{complete ? '회로 연결 완료. 장치를 가동하세요.' : '초록색은 전원이 연결된 회로예요.'}</p>
           <button className="primary-button modal-primary" disabled={!complete} onClick={onRepair}>장치 가동</button>
           <button className="text-button" onClick={() => setCircuit(onNewCircuit())}>새 회로 배치</button>
         </>
       ) : (
         <>
-          <p>같은 섬에서 탐색을 이어가거나 이번 비행을 마칠 수 있어요.</p>
-          <button className="primary-button modal-primary" onClick={onTakeOff}>다시 이륙</button>
+          <p>비행을 이어가면 최고 속도가 {maxSpeed + 100} u/s로 올라가요.</p>
+          <button ref={takeOffButton} className="primary-button modal-primary" onClick={onTakeOff}>다시 이륙</button>
           <button className="secondary-button" onClick={onFinish}>비행 마치기</button>
         </>
       )}

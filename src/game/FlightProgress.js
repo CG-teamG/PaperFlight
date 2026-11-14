@@ -30,8 +30,10 @@ export function createFlightProgress(environment) {
   const ringSystem = new RingSystem(rings)
   let targetRing = null
   let award = null
+  let nextRecommendation = 0
 
-  function recommendRing(position, forward) {
+  function recommendRing(position, forward, keepCurrent = false) {
+    const previous = targetRing
     targetRing = null
     let bestCost = Infinity
     let bestObstructed = true
@@ -56,7 +58,7 @@ export function createFlightProgress(environment) {
         }
       }
 
-      const cost = distance * (1 + (1 - alignment) * 0.5)
+      const cost = distance * (1 + (1 - alignment) * 0.5) * (keepCurrent && ring === previous ? 0.75 : 1)
       if ((!obstructed && bestObstructed) || (obstructed === bestObstructed && cost < bestCost)) {
         bestCost = cost
         bestObstructed = obstructed
@@ -64,7 +66,7 @@ export function createFlightProgress(environment) {
       }
     }
 
-    environment.setActiveRing(targetRing?.id)
+    if (!keepCurrent || targetRing !== previous) environment.setActiveRing(targetRing?.id)
   }
 
   function getSnapshot(outcome) {
@@ -94,6 +96,11 @@ export function createFlightProgress(environment) {
 
   return {
     getSnapshot,
+    refreshTarget(position, forward, elapsed) {
+      if (elapsed < nextRecommendation) return
+      nextRecommendation = elapsed + 2
+      recommendRing(position, forward, true)
+    },
     suspendSurvey() {
       award = null
       ringSystem.clearPosition()
@@ -121,6 +128,7 @@ export function createFlightProgress(environment) {
       return getSnapshot()
     },
     reset() {
+      nextRecommendation = 0
       environment.reset()
       rings = environment.getRingData()
       ringSystem.setRings(rings)

@@ -7,6 +7,7 @@ export class FlightController {
     this.airplane = airplane
     this.initialSpeed = speed
     this.speed = speed
+    this.maxSpeed = MAX_FLIGHT_SPEED
     this.turnSpeed = 1
     this.keys = {}
     this.inputEnabled = true
@@ -38,7 +39,7 @@ export class FlightController {
     const throttle = Number(Boolean(this.keys.KeyW)) - Number(Boolean(this.keys.KeyS))
     if (throttle) {
       const nextSpeed = this.speed + throttle * SPEED_CHANGE_PER_SECOND * deltaTime
-      this.speed = Math.min(MAX_FLIGHT_SPEED, Math.max(MIN_SPEED, nextSpeed))
+      this.speed = Math.min(this.maxSpeed, Math.max(MIN_SPEED, nextSpeed))
     }
 
     // 요: 기수를 좌우로 회전

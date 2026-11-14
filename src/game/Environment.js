@@ -1541,7 +1541,7 @@ export function createEnvironment(THREE, scene, options = {}) {
         transparent: true, // 불투명 링은 구름 베일보다 먼저 그려져 가려짐 -> renderOrder로 순서 제어
       });
       const main = new THREE.Mesh(
-        new THREE.TorusGeometry(RING_RADIUS, tube, 16, 56),
+        new THREE.TorusGeometry(RING_RADIUS + tube, tube, 16, 56),
         mat,
       );
       const haloMat = new THREE.MeshBasicMaterial({

@@ -1,5 +1,7 @@
 /* Mission information follows the player's next action. */
+html, body, #root { min-width: 0; }
 #root { width: 100%; border: 0; }
+.app { min-height: 100dvh; }
 .start-screen {
   display: grid;
   align-items: center;
@@ -14,7 +16,7 @@
 .mission-steps strong { display: block; color: #fff; }
 .mission-steps span { display: block; margin-top: 2px; }
 .start-button { width: min(100%, 245px); min-width: 0; }
-.game-screen { --map-width: min(clamp(252px, 30vw, 425px), 46dvh); min-height: 470px; height: 100dvh; }
+.game-screen { --map-width: min(clamp(252px, 30vw, 425px), 46dvh); min-height: 0; height: 100dvh; }
 .flight-map {
   position: absolute;
   z-index: 9;
@@ -52,6 +54,7 @@
 }
 .finish-button:disabled, .pause-modal button:disabled { opacity: .54; cursor: default; }
 .route-legend-discovery { --terrain-color: #86d7a7; }
+.result-screen { min-height: 100dvh; }
 .result-content { width: min(1080px, calc(100% - 32px)); }
 .result-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr); }
 .result-map-card .flight-route-map { height: clamp(170px, 39dvh, 390px); }
@@ -66,8 +69,8 @@
 .repair-feedback[data-failed="true"] { color: #ffb3a2; }
 .repair-terminals button span { display: block; }
 @media (max-width: 720px) {
-  .game-screen { --map-width: 48vw; min-height: 550px; }
-  .game-screen .flight-map { bottom: 86px; }
+  .game-screen { --map-width: min(44vw, 37dvh); }
+  .game-screen .flight-map { bottom: 64px; }
   .flight-telemetry { flex-wrap: wrap; gap: 4px 7px; }
   .game-screen .game-footer { right: var(--hud-edge); }
   .game-screen[data-storm="true"] .landing-direction { bottom: auto; top: 47%; }
@@ -172,3 +175,84 @@
 .result-map-3d { height: clamp(240px, 50dvh, 460px); overflow: hidden; border-radius: 8px; }
 .result-map-3d canvas { display: block; }
 .result-map-help { margin-top: 8px; font-size: 12px; color: #bfd1dd; }
+
+.live-map-3d { aspect-ratio: 1; overflow: hidden; border: 1px solid #ffffff26; border-radius: 6px; background: radial-gradient(ellipse at 24% 18%, #7d94a7, transparent 72%), radial-gradient(ellipse at 86% 75%, #647d93, transparent 73%), #41586d; pointer-events: none; }
+.live-map-3d canvas { display: block; width: 100%; height: 100%; }
+
+.ring-tally { color: #eef6ff; font-size: 11px; text-shadow: 0 1px 4px #091927; }
+.flight-ring-score { position: relative; }
+.flight-ring-score .score-award { position: absolute; top: 100%; right: 0; transform: translateY(23px); white-space: nowrap; color: #a8ffc8; font-size: 13px; animation: fade-score 2.5s both; }
+@keyframes fade-score { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+.flight-events { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.flight-events button { width: auto; min-height: 34px; padding: 5px 10px; margin: 0; }
+
+.game-screen[data-storm="true"] .storm-alert-edge {
+  box-shadow: inset 0 0 66px 24px #ff203df0, inset 0 0 145px 22px #9f0d376b;
+}
+.game-screen[data-storm="true"] .flight-status,
+.game-screen[data-storm="true"] .landing-direction {
+  border-color: #ff6473;
+  background: #401923;
+  color: #fff1f2;
+}
+.game-screen[data-storm="true"] .flight-objective strong { color: #ff9aa6; }
+.flight-timeline { margin-top: 14px; padding-inline: 3px; }
+.flight-timeline-axis { position: relative; display: flex; justify-content: space-between; padding-bottom: 7px; border-bottom: 2px solid #8399ab; font-variant-numeric: tabular-nums; font-size: 11px; }
+.flight-timeline-axis i { position: absolute; bottom: -5px; width: 3px; height: 9px; background: #b5ddff; }
+.flight-timeline-axis i[data-event="storm"] { background: #ff6473; }
+.flight-timeline-axis i[data-event="landing"] { background: #75eb9c; }
+.flight-timeline-axis i[data-event="repair"] { background: #ffd287; }
+.flight-events { list-style: none; padding: 0; }
+.flight-events time { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 600px) {
+  .game-screen .game-header { padding-inline: var(--hud-edge); }
+  .game-screen .exploration-panel { max-width: calc(50% - var(--hud-edge)); }
+  .discovery-readout { flex-wrap: wrap; }
+  .result-actions .primary-button { min-width: 0; max-width: 100%; }
+}
+@media (max-height: 490px) {
+  .game-screen .exploration-panel { max-height: calc(100% - 130px); overflow-y: auto; }
+  .game-screen .flight-map { bottom: 56px; }
+  .game-screen .control-guide { padding: 4px 6px; }
+}
+html, body, #root { min-height: 100%; }
+.start-screen, .result-screen { min-height: 100dvh; max-width: 100%; }
+.start-screen { grid-template-columns: minmax(0, 1fr); padding: clamp(16px, 5vw, 72px); }
+.start-content { min-width: 0; }
+.start-content h1 { overflow-wrap: anywhere; }
+.result-screen { padding: clamp(10px, 2.8dvh, 32px) 0; }
+.result-content { width: min(1200px, calc(100% - 2 * clamp(12px, 3vw, 36px))); min-width: 0; }
+.result-score-card, .result-map-card, .result-map-3d { min-width: 0; }
+.result-map-3d { height: clamp(170px, 42dvh, 460px); }
+.result-actions { flex-wrap: wrap; }
+.result-actions button { max-width: 100%; }
+.map-legend { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 15px; margin-top: 12px; color: #edf5ff; font-size: 12px; text-align: left; }
+.map-legend ul { display: flex; flex-wrap: wrap; gap: 8px 15px; margin: 0; padding: 0; list-style: none; }
+.map-legend li, .map-altitude { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.altitude-ramp { width: clamp(36px, 7vw, 90px); height: 7px; border: 1px solid #ffffff80; border-radius: 5px; background: linear-gradient(90deg,var(--altitude-low),var(--altitude-high)); }
+.map-legend i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.map-event-storm { background: #ffa444; }
+.map-event-landing { background: #75eb9c; }
+.discovered-sites { margin: 0 0 10px; color: #b6f0cd; font-size: 12px; }
+@media (max-width: 720px) {
+  .result-map-3d { height: clamp(150px, 37dvh, 340px); }
+  .result-actions button { min-width: 0; }
+}
+.result-screen .result-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.result-screen .result-map-card { grid-row: 1; }
+.result-screen .result-score-card { padding: 10px 18px; }
+.record-stats { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
+.record-stats div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.record-stats dt { font-size: .8rem; opacity: .75; }
+.record-stats dd { margin: 0; font-weight: 800; }
+.record-stats small { font-weight: 400; }
+.result-screen .result-map-3d { height: clamp(160px, calc(100dvh - 480px), 500px); }
+.result-screen .result-content h1 { margin-bottom: 14px; }
+.start-hint { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.start-control { white-space: nowrap; }
+.start-control kbd { display: inline-block; min-width: 1.5em; padding: 2px 4px; border: 1px solid currentColor; border-radius: 4px; text-align: center; }
+.landing-guide-button[aria-pressed="true"] { background: #456378; border-color: #acdefc; }
+.flight-timeline h2 { margin: 0 0 5px; font-size: 12px; text-align: left; }
+.flight-route-heading { flex-wrap: wrap; gap: 4px 12px; }
+.result-screen .discovered-sites { margin: 8px 0 0; }
