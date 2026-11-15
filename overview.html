@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PaperFlight 전체 지도 뷰어</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #111;
+        font:
+          13px/1.5 system-ui,
+          sans-serif;
+      }
+      #view {
+        position: fixed;
+        inset: 0;
+      }
+      #hud {
+        position: fixed;
+        left: 12px;
+        top: 12px;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.55);
+        padding: 10px 12px;
+        border-radius: 8px;
+        max-width: 320px;
+      }
+      #hud button {
+        margin: 2px 4px 2px 0;
+      }
+      #hud code {
+        color: #ffd27a;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="view"></div>
+    <div id="hud"></div>
+    <script type="module" src="/src/dev/overview.js"></script>
+  </body>
+</html>

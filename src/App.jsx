@@ -1,4 +1,3 @@
-
 /*
  * ============================================================
  * 파일명: App.jsx
@@ -17,69 +16,95 @@
  * ============================================================
  */
 
-import { useEffect, useRef, useState } from 'react'
-import * as THREE from 'three'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { ExplorationMap } from './game/ExplorationMap.js'
-import { HEIGHT_COLOR } from './game/FlightTrail.js'
-import { EMPTY_FLIGHT_PROGRESS } from './game/FlightProgress.js'
-import { createGameScene } from './game/GameScene.js'
-import StormRepair from './StormRepair.jsx'
-import { createCircuit } from './game/RepairCircuit.js'
-import FlightInstructions from './FlightInstructions.jsx'
-import './App.css'
-import './MissionLayout.css'
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { ExplorationMap } from "./game/ExplorationMap.js";
+import { HEIGHT_COLOR } from "./game/FlightTrail.js";
+import { EMPTY_FLIGHT_PROGRESS } from "./game/FlightProgress.js";
+import { createGameScene } from "./game/GameScene.js";
+import StormRepair from "./StormRepair.jsx";
+import { createCircuit } from "./game/RepairCircuit.js";
+import FlightInstructions from "./FlightInstructions.jsx";
+import "./App.css";
+import "./MissionLayout.css";
 
 const FLIGHT_CONTROLS = [
-  { keys: ['↑', '↓'], label: '상승·하강' },
-  { keys: ['←', '→'], label: '좌우 회전' },
-  { keys: ['W', 'S'], label: '가속·감속' },
-]
+  { keys: ["↑", "↓"], label: "상승·하강" },
+  { keys: ["←", "→"], label: "좌우 회전" },
+  { keys: ["W", "S"], label: "가속·감속" },
+  { keys: ["V"], label: "전체 지도 보기" },
+];
 const RECOVERY_MESSAGES = {
-  terrain: '지형에 충돌했어요.',
-  water: '수면에 닿았어요.',
-}
+  terrain: "지형에 충돌했어요.",
+  water: "수면에 닿았어요.",
+};
 
 // 초 단위 시간을 00:00 형식으로 변환
 function formatTime(seconds) {
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
 
-  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
+  return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
 function Logo() {
   return (
     <div className="brand">
       <div className="brand-icon">✈</div>
-      <span>PAPER<span>FLIGHT</span></span>
+      <span>
+        PAPER<span>FLIGHT</span>
+      </span>
     </div>
-  )
+  );
 }
 
 // 시작 화면
 function StartScreen({ onStart }) {
-  const preview = useRef(null)
-  const instructions = useRef(null)
+  const preview = useRef(null);
+  const instructions = useRef(null);
   useEffect(() => {
-    const scene = createGameScene(THREE, preview.current, () => {}, null, null, { preview: true })
-    return () => scene.dispose()
-  }, [])
+    const scene = createGameScene(
+      THREE,
+      preview.current,
+      () => {},
+      null,
+      null,
+      { preview: true },
+    );
+    return () => scene.dispose();
+  }, []);
   return (
     <main className="start-screen">
       <div className="start-landscape" ref={preview} aria-hidden="true" />
       <section className="start-content">
         <h1>PaperFlight</h1>
         <ol className="mission-steps">
-          <li><strong>섬 탐색</strong><span>종이비행기를 조작해 새 구역을 발견하고, 링을 통과해 점수를 획득하세요.</span></li>
-          <li><strong>비상 귀환</strong><span>폭풍이 오면 화면의 H 표시를 따라 착륙하세요.</span></li>
-          <li><strong>방재 장치 복구</strong><span>회로를 연결하고 다시 이륙하거나 비행을 마치세요.</span></li>
+          <li>
+            <strong>섬 탐색</strong>
+            <span>
+              종이비행기를 조작해 새 구역을 발견하고, 링을 통과해 점수를
+              획득하세요.
+            </span>
+          </li>
+          <li>
+            <strong>비상 귀환</strong>
+            <span>폭풍이 오면 화면의 H 표시를 따라 착륙하세요.</span>
+          </li>
+          <li>
+            <strong>방재 장치 복구</strong>
+            <span>회로를 연결하고 다시 이륙하거나 비행을 마치세요.</span>
+          </li>
         </ol>
         <div className="start-actions">
           <button className="primary-button start-button" onClick={onStart}>
             비행 시작하기 <span aria-hidden="true">→</span>
           </button>
-          <button className="secondary-button" aria-haspopup="dialog" onClick={() => instructions.current.showModal()}>
+          <button
+            className="secondary-button"
+            aria-haspopup="dialog"
+            onClick={() => instructions.current.showModal()}
+          >
             게임 방법
           </button>
         </div>
@@ -87,50 +112,95 @@ function StartScreen({ onStart }) {
         <div className="start-hint">
           {FLIGHT_CONTROLS.map(({ keys, label }) => (
             <span className="start-control" key={label}>
-              {keys.map((key) => <kbd key={key}>{key}</kbd>)} {label}
+              {keys.map((key) => (
+                <kbd key={key}>{key}</kbd>
+              ))}{" "}
+              {label}
             </span>
           ))}
         </div>
       </section>
-      <FlightInstructions dialog={instructions} controls={FLIGHT_CONTROLS} onContinue={onStart} continueLabel="게임 시작" />
+      <FlightInstructions
+        dialog={instructions}
+        controls={FLIGHT_CONTROLS}
+        onContinue={onStart}
+        continueLabel="게임 시작"
+      />
     </main>
-  )
+  );
 }
 
 // 게임 플레이 화면
-function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPaused }) {
+function PlayingScreen({
+  progress,
+  sceneContainer,
+  ringDirection,
+  onPause,
+  isPaused,
+}) {
   const {
-    score, passedRings, totalRings,
-    award, speed, maxSpeed = 100, recoveries, outsideSurveyArea,
-    elapsed, guidance, recoveryReason, storm,
-  } = progress
-  const discovery = progress.discovery
+    score,
+    passedRings,
+    totalRings,
+    award,
+    speed,
+    maxSpeed = 100,
+    recoveries,
+    outsideSurveyArea,
+    elapsed,
+    guidance,
+    recoveryReason,
+    storm,
+  } = progress;
+  const discovery = progress.discovery;
 
   return (
     <main className="game-screen" data-storm={storm}>
       <div className="flight-scene" ref={sceneContainer} />
-      {storm && <div className="storm-alert-edge" data-paused={isPaused} aria-hidden="true" />}
+      {storm && (
+        <div
+          className="storm-alert-edge"
+          data-paused={isPaused}
+          aria-hidden="true"
+        />
+      )}
       {/* 상단 UI */}
       <header className="game-header">
         <div className="flight-header-left">
           <Logo />
           <aside className="hud-panel exploration-panel" aria-label="비행 계기">
             <dl className="flight-telemetry">
-              <div><dt>현재 속도</dt><dd><span>{Math.floor(speed)}</span> <small>u/s</small></dd></div>
-              <div><dt>최대 속도</dt><dd><span>{maxSpeed}</span> <small>u/s</small></dd></div>
+              <div>
+                <dt>현재 속도</dt>
+                <dd>
+                  <span>{Math.floor(speed)}</span> <small>u/s</small>
+                </dd>
+              </div>
+              <div>
+                <dt>최대 속도</dt>
+                <dd>
+                  <span>{maxSpeed}</span> <small>u/s</small>
+                </dd>
+              </div>
             </dl>
             {storm && <p className="survey-status">탐험 · 득점 일시 중지</p>}
           </aside>
         </div>
 
-        <div className={`flight-status ${isPaused ? 'paused' : ''}`}>
+        <div className={`flight-status ${isPaused ? "paused" : ""}`}>
           <span className="status-dot" />
           <time aria-label="비행 시간">{formatTime(elapsed)}</time>
         </div>
 
         <div className="flight-header-actions">
-          <button className="pause-button" aria-label="일시정지 Esc" onClick={onPause}>
-            <span className="pause-icon" aria-hidden="true">Ⅱ</span>
+          <button
+            className="pause-button"
+            aria-label="일시정지 Esc"
+            onClick={onPause}
+          >
+            <span className="pause-icon" aria-hidden="true">
+              Ⅱ
+            </span>
             <span>일시정지</span> <kbd>Esc</kbd>
           </button>
           <div className="flight-ring-score">
@@ -138,54 +208,97 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
               <strong>{score.toLocaleString()}</strong>
               <span>score</span>
             </div>
-            <small className="ring-tally">통과한 링 {passedRings}/{totalRings}</small>
+            <small className="ring-tally">
+              통과한 링 {passedRings}/{totalRings}
+            </small>
             {award && !storm && (
               <div className="score-award" role="status" key={passedRings}>
                 <span>획득 +{award.points.toLocaleString()}점</span>
                 {award.bonus > 0 && (
-                  <small>(기본 {(award.points - award.bonus).toLocaleString()}점 · 속도 보너스 {award.bonus.toLocaleString()}점)</small>
+                  <small>
+                    (기본 {(award.points - award.bonus).toLocaleString()}점 ·
+                    속도 보너스 {award.bonus.toLocaleString()}점)
+                  </small>
                 )}
               </div>
             )}
           </div>
         </div>
-        {(storm || recoveries > 0) && <div className="ring-feedback">
-          {storm && <div className="storm-forecast emergency-status" data-active={!isPaused} role="status">
-            <strong>비상 착륙</strong> <span className="emergency-instruction">H 착륙장으로 즉시 귀환</span>
-          </div>}
-          {recoveries > 0 && (
-            <div className="ring-feedback-card recovery-feedback" role="status" aria-atomic="true" key={`recovery-${recoveries}`}>
-              <strong>{storm ? '안전 고도에서 귀환 재시도' : '출발 지점으로 복귀'}</strong>
-              <span>{RECOVERY_MESSAGES[recoveryReason]}</span>
-              {recoveryReason === 'terrain' && <span>최대 속도를 100&nbsp;u/s로 초기화했어요.</span>}
-              <span>탐험 기록은 유지돼요.</span>
-            </div>
-          )}
-        </div>}
+        {(storm || recoveries > 0) && (
+          <div className="ring-feedback">
+            {storm && (
+              <div
+                className="storm-forecast emergency-status"
+                data-active={!isPaused}
+                role="status"
+              >
+                <strong>비상 착륙</strong>{" "}
+                <span className="emergency-instruction">
+                  H 착륙장으로 즉시 귀환
+                </span>
+              </div>
+            )}
+            {recoveries > 0 && (
+              <div
+                className="ring-feedback-card recovery-feedback"
+                role="status"
+                aria-atomic="true"
+                key={`recovery-${recoveries}`}
+              >
+                <strong>
+                  {storm ? "안전 고도에서 귀환 재시도" : "출발 지점으로 복귀"}
+                </strong>
+                <span>{RECOVERY_MESSAGES[recoveryReason]}</span>
+                {recoveryReason === "terrain" && (
+                  <span>최대 속도를 100&nbsp;u/s로 초기화했어요.</span>
+                )}
+                <span>탐험 기록은 유지돼요.</span>
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
-      {!storm && outsideSurveyArea && <div className="survey-boundary" role="status">섬에서 멀어지고 있어요</div>}
+      {!storm && outsideSurveyArea && (
+        <div className="survey-boundary" role="status">
+          섬에서 멀어지고 있어요
+        </div>
+      )}
       {!storm && discovery && elapsed - discovery.time < 3 && (
-        <div className="discovery-toast" role="status">새 구역 발견{discovery.name && ' · ' + discovery.name}</div>
+        <div className="discovery-toast" role="status">
+          새 구역 발견{discovery.name && " · " + discovery.name}
+        </div>
       )}
 
-      <div className={`ring-direction${storm ? ' landing-direction' : ''}`} ref={ringDirection} hidden>
-        <span className="ring-direction-arrow" aria-hidden="true">↑</span>
-        {storm && guidance && <div className="guide-details">
-          <strong>H 착륙장</strong>
-          <span>{Math.round(guidance.distance).toLocaleString()} u</span>
-        </div>}
+      <div
+        className={`ring-direction${storm ? " landing-direction" : ""}`}
+        ref={ringDirection}
+        hidden
+      >
+        <span className="ring-direction-arrow" aria-hidden="true">
+          ↑
+        </span>
+        {storm && guidance && (
+          <div className="guide-details">
+            <strong>H 착륙장</strong>
+            <span>{Math.round(guidance.distance).toLocaleString()} u</span>
+          </div>
+        )}
       </div>
-      {!storm && progress.nearLanding && <div className="landing-tip">
-        H 착륙장 위에서 ↓로 하강
-      </div>}
+      {!storm && progress.nearLanding && (
+        <div className="landing-tip">H 착륙장 위에서 ↓로 하강</div>
+      )}
 
       <footer className="game-footer">
         <div className="control-guide">
           {FLIGHT_CONTROLS.map(({ keys, label }) => (
             <div className="control-item" key={label}>
               <span className="control-keys">
-                {keys.map((key) => <kbd className="key" key={key}>{key}</kbd>)}
+                {keys.map((key) => (
+                  <kbd className="key" key={key}>
+                    {key}
+                  </kbd>
+                ))}
               </span>
               <span>{label}</span>
             </div>
@@ -193,22 +306,22 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
         </div>
       </footer>
     </main>
-  )
+  );
 }
 
 // 일시정지 팝업
 function PauseScreen({ onResume, onRestart, onHome, onFinish, storm }) {
-  const modal = useRef(null)
-  const resumeButton = useRef(null)
-  const instructions = useRef(null)
-  const [confirmAction, setConfirmAction] = useState(null)
+  const modal = useRef(null);
+  const resumeButton = useRef(null);
+  const instructions = useRef(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => {
-    const dialog = modal.current
-    dialog.showModal()
-    resumeButton.current?.focus()
-    return () => dialog.close()
-  }, [])
+    const dialog = modal.current;
+    dialog.showModal();
+    resumeButton.current?.focus();
+    return () => dialog.close();
+  }, []);
 
   return (
     <>
@@ -217,89 +330,164 @@ function PauseScreen({ onResume, onRestart, onHome, onFinish, storm }) {
         ref={modal}
         aria-labelledby="pause-title"
         onCancel={(event) => {
-          event.preventDefault()
-          if (confirmAction) setConfirmAction(null)
-          else onResume()
+          event.preventDefault();
+          if (confirmAction) setConfirmAction(null);
+          else onResume();
         }}
       >
         <header className="pause-heading">
           {!confirmAction && (
-            <button className="secondary-button pause-help-button" aria-haspopup="dialog" onClick={() => instructions.current.showModal()}>
+            <button
+              className="secondary-button pause-help-button"
+              aria-haspopup="dialog"
+              onClick={() => instructions.current.showModal()}
+            >
               게임 방법
             </button>
           )}
-          <h2 id="pause-title">{confirmAction ? '현재 비행 기록을 지울까요?' : '비행 일시정지'}</h2>
+          <h2 id="pause-title">
+            {confirmAction ? "현재 비행 기록을 지울까요?" : "비행 일시정지"}
+          </h2>
         </header>
-        {confirmAction ? <>
-          <button className="primary-button modal-primary" onClick={() => setConfirmAction(null)}>돌아가기</button>
-          <button className="secondary-button" onClick={confirmAction === 'restart' ? onRestart : onHome}>
-            {confirmAction === 'restart' ? '기록 지우고 다시 시작' : '기록 지우고 메인으로'}
-          </button>
-        </> : <>
-          <button ref={resumeButton} className="primary-button modal-primary" onClick={onResume}>{storm ? '비상 귀환 재개' : '비행 재개'}</button>
-          {!storm && <button className="secondary-button" onClick={onFinish}>비행 마치고 결과 보기</button>}
-          <div className="pause-exits">
-            <button className="text-button" onClick={() => setConfirmAction('restart')}>처음부터 다시 시작</button>
-            <button className="text-button" onClick={() => setConfirmAction('home')}>메인 화면으로</button>
-          </div>
-        </>}
+        {confirmAction ? (
+          <>
+            <button
+              className="primary-button modal-primary"
+              onClick={() => setConfirmAction(null)}
+            >
+              돌아가기
+            </button>
+            <button
+              className="secondary-button"
+              onClick={confirmAction === "restart" ? onRestart : onHome}
+            >
+              {confirmAction === "restart"
+                ? "기록 지우고 다시 시작"
+                : "기록 지우고 메인으로"}
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              ref={resumeButton}
+              className="primary-button modal-primary"
+              onClick={onResume}
+            >
+              {storm ? "비상 귀환 재개" : "비행 재개"}
+            </button>
+            {!storm && (
+              <button className="secondary-button" onClick={onFinish}>
+                비행 마치고 결과 보기
+              </button>
+            )}
+            <div className="pause-exits">
+              <button
+                className="text-button"
+                onClick={() => setConfirmAction("restart")}
+              >
+                처음부터 다시 시작
+              </button>
+              <button
+                className="text-button"
+                onClick={() => setConfirmAction("home")}
+              >
+                메인 화면으로
+              </button>
+            </div>
+          </>
+        )}
       </dialog>
-      <FlightInstructions dialog={instructions} controls={FLIGHT_CONTROLS} onContinue={onResume} continueLabel="비행 재개" />
+      <FlightInstructions
+        dialog={instructions}
+        controls={FLIGHT_CONTROLS}
+        onContinue={onResume}
+        continueLabel="비행 재개"
+      />
     </>
-  )
+  );
 }
 
 const FLIGHT_EVENTS = {
-  storm: { label: '폭풍 발생', color: '#ffa444' },
-  landing: { label: 'H 착륙', color: '#75eb9c' },
-  repair: { label: '복구 완료', color: '#ffe182' },
-  takeoff: { label: '재이륙', color: '#86d9ff' },
-  recovery: { label: '충돌 후 복귀', color: '#ff8d9b' },
-}
+  storm: { label: "폭풍 발생", color: "#ffa444" },
+  landing: { label: "H 착륙", color: "#75eb9c" },
+  repair: { label: "복구 완료", color: "#ffe182" },
+  takeoff: { label: "재이륙", color: "#86d9ff" },
+  recovery: { label: "충돌 후 복귀", color: "#ff8d9b" },
+};
 
 function FlightTimeline({ events, elapsed }) {
   return (
     <section className="flight-timeline" aria-label="비행 타임라인">
       <h2>비행 타임라인</h2>
       <div className="flight-timeline-labels">
-        <span>00:00</span><span>{formatTime(elapsed)}</span>
+        <span>00:00</span>
+        <span>{formatTime(elapsed)}</span>
       </div>
       <div className="flight-timeline-axis">
         {events.map((event, index) => {
-          const { label, color } = FLIGHT_EVENTS[event.type]
-          const position = elapsed > 0 ? Math.max(0, Math.min(1, event.time / elapsed)) : 0
+          const { label, color } = FLIGHT_EVENTS[event.type];
+          const position =
+            elapsed > 0 ? Math.max(0, Math.min(1, event.time / elapsed)) : 0;
           return (
-            <i key={index} role="img" aria-label={formatTime(event.time) + ' ' + label}
-              style={{ left: position * 100 + '%', backgroundColor: color }} />
-          )
+            <i
+              key={index}
+              role="img"
+              aria-label={formatTime(event.time) + " " + label}
+              style={{ left: position * 100 + "%", backgroundColor: color }}
+            />
+          );
         })}
       </div>
       <ul className="timeline-legend" aria-label="타임라인 색상 범례">
-        {Object.entries(FLIGHT_EVENTS).map(([type, { label, color }]) => <li key={type}><i style={{ backgroundColor: color }} />{label}</li>)}
+        {Object.entries(FLIGHT_EVENTS).map(([type, { label, color }]) => (
+          <li key={type}>
+            <i style={{ backgroundColor: color }} />
+            {label}
+          </li>
+        ))}
       </ul>
     </section>
-  )
+  );
 }
 
 function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
-  const container = useRef(null)
+  const container = useRef(null);
   useEffect(() => {
-    if (!island) return
-    const map = new ExplorationMap(THREE, OrbitControls, container.current, { ...island, zones }, path)
-    return () => map.dispose()
-  }, [island, zones, path])
+    if (!island) return;
+    const map = new ExplorationMap(
+      THREE,
+      OrbitControls,
+      container.current,
+      { ...island, zones },
+      path,
+    );
+    return () => map.dispose();
+  }, [island, zones, path]);
   return (
     <>
-      <div className="flight-route-heading"><strong>전체 비행 경로</strong><span>이동 거리 {Math.round(distance).toLocaleString()} u</span></div>
-      <div className="result-map-3d" ref={container} aria-label="3D 비행 경로 지도" />
+      <div className="flight-route-heading">
+        <strong>전체 비행 경로</strong>
+        <span>이동 거리 {Math.round(distance).toLocaleString()} u</span>
+      </div>
+      <div
+        className="result-map-3d"
+        ref={container}
+        aria-label="3D 비행 경로 지도"
+      />
       <FlightTimeline events={routeEvents ?? []} elapsed={elapsed} />
       <div className="map-legend">
         <div className="map-altitude">
           <span>낮은 고도</span>
-          <span className="altitude-ramp" style={{
-            '--altitude-low': '#' + HEIGHT_COLOR.low.toString(16).padStart(6, '0'),
-            '--altitude-high': '#' + HEIGHT_COLOR.high.toString(16).padStart(6, '0'),
-          }} aria-hidden="true" />
+          <span
+            className="altitude-ramp"
+            style={{
+              "--altitude-low":
+                "#" + HEIGHT_COLOR.low.toString(16).padStart(6, "0"),
+              "--altitude-high":
+                "#" + HEIGHT_COLOR.high.toString(16).padStart(6, "0"),
+            }}
+            aria-hidden="true"
+          />
           <span>높은 고도</span>
         </div>
         <ul aria-label="지도 범례">
@@ -311,17 +499,29 @@ function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
       </div>
       <p className="result-map-help">드래그로 회전 · 휠로 확대/축소</p>
     </>
-  )
+  );
 }
 
 // 결과 화면
 function ResultScreen({ progress, onRestart, onHome }) {
   const {
-    score, ringPoints, landingPoints, passedRings, island, resultIsland, zones = [], exploration = 0, distance, stormsResolved, routeEvents,
-    path, recoveries, elapsed,
-  } = progress
-  const discoveryCount = zones.filter(({ discovered }) => discovered).length
-  const totalRegions = zones.length
+    score,
+    ringPoints,
+    landingPoints,
+    passedRings,
+    island,
+    resultIsland,
+    zones = [],
+    exploration = 0,
+    distance,
+    stormsResolved,
+    routeEvents,
+    path,
+    recoveries,
+    elapsed,
+  } = progress;
+  const discoveryCount = zones.filter(({ discovered }) => discovered).length;
+  const totalRegions = zones.length;
   return (
     <main className="result-screen">
       <div className="result-content">
@@ -344,9 +544,18 @@ function ResultScreen({ progress, onRestart, onHome }) {
             </div>
 
             <dl className="result-score-breakdown">
-              <div><dt>링 통과 점수</dt><dd>{ringPoints.toLocaleString()}점</dd></div>
-              <div><dt>착륙 보너스</dt><dd>{landingPoints.toLocaleString()}점</dd></div>
-              <div><dt>해결한 폭풍</dt><dd>{stormsResolved ?? 0}회</dd></div>
+              <div>
+                <dt>링 통과 점수</dt>
+                <dd>{ringPoints.toLocaleString()}점</dd>
+              </div>
+              <div>
+                <dt>착륙 보너스</dt>
+                <dd>{landingPoints.toLocaleString()}점</dd>
+              </div>
+              <div>
+                <dt>해결한 폭풍</dt>
+                <dd>{stormsResolved ?? 0}회</dd>
+              </div>
             </dl>
 
             <div className="result-divider" />
@@ -354,12 +563,18 @@ function ResultScreen({ progress, onRestart, onHome }) {
             <div className="result-stats">
               <div>
                 <span>링 통과</span>
-                <strong>{passedRings}<small>개</small></strong>
+                <strong>
+                  {passedRings}
+                  <small>개</small>
+                </strong>
               </div>
 
               <div>
                 <span>탐험률 {exploration}%</span>
-                <strong>{discoveryCount}<small> / {totalRegions}</small></strong>
+                <strong>
+                  {discoveryCount}
+                  <small> / {totalRegions}</small>
+                </strong>
               </div>
 
               <div>
@@ -368,12 +583,22 @@ function ResultScreen({ progress, onRestart, onHome }) {
               </div>
               <div>
                 <span>복귀</span>
-                <strong>{recoveries}<small>회</small></strong>
+                <strong>
+                  {recoveries}
+                  <small>회</small>
+                </strong>
               </div>
             </div>
           </section>
           <section className="result-map-card">
-            <ResultMap island={resultIsland ?? island} zones={zones} path={path} routeEvents={routeEvents} distance={distance} elapsed={elapsed} />
+            <ResultMap
+              island={resultIsland ?? island}
+              zones={zones}
+              path={path}
+              routeEvents={routeEvents}
+              distance={distance}
+              elapsed={elapsed}
+            />
           </section>
         </div>
 
@@ -388,85 +613,87 @@ function ResultScreen({ progress, onRestart, onHome }) {
         </div>
       </div>
     </main>
-  )
+  );
 }
 
 // 전체 앱
 function App() {
-  const [flightId, setFlightId] = useState(0)
-  const [gameState, setGameState] = useState('start')
-  const [progress, setProgress] = useState(EMPTY_FLIGHT_PROGRESS)
-  const sceneContainer = useRef(null)
-  const ringDirection = useRef(null)
-  const scene = useRef(null)
-  const lastCircuit = useRef(null)
-  const [dockedCircuit, setDockedCircuit] = useState(null)
-  const isPaused = gameState === 'paused'
-  const docked = gameState === 'docked'
-  const inFlight = gameState === 'playing' || isPaused || docked
+  const [flightId, setFlightId] = useState(0);
+  const [gameState, setGameState] = useState("start");
+  const [progress, setProgress] = useState(EMPTY_FLIGHT_PROGRESS);
+  const sceneContainer = useRef(null);
+  const ringDirection = useRef(null);
+  const scene = useRef(null);
+  const lastCircuit = useRef(null);
+  const [dockedCircuit, setDockedCircuit] = useState(null);
+  const isPaused = gameState === "paused";
+  const docked = gameState === "docked";
+  const inFlight = gameState === "playing" || isPaused || docked;
 
   useEffect(() => {
-    if (!inFlight) return
+    if (!inFlight) return;
 
     const gameScene = createGameScene(
-      THREE, sceneContainer.current, setProgress, ringDirection.current, () => {
-        lastCircuit.current = createCircuit(lastCircuit.current)
-        setDockedCircuit(lastCircuit.current)
-        setGameState('docked')
+      THREE,
+      sceneContainer.current,
+      setProgress,
+      ringDirection.current,
+      () => {
+        lastCircuit.current = createCircuit(lastCircuit.current);
+        setDockedCircuit(lastCircuit.current);
+        setGameState("docked");
       },
-    )
-    scene.current = gameScene
+    );
+    scene.current = gameScene;
     return () => {
-      scene.current = null
-      gameScene.dispose()
-    }
-  }, [inFlight, flightId])
+      scene.current = null;
+      gameScene.dispose();
+    };
+  }, [inFlight, flightId]);
 
   useEffect(() => {
-    scene.current?.setPaused(isPaused || docked)
-  }, [isPaused, docked, flightId])
+    scene.current?.setPaused(isPaused || docked);
+  }, [isPaused, docked, flightId]);
 
   useEffect(() => {
-    if (gameState !== 'playing') return
+    if (gameState !== "playing") return;
 
     const pauseWhenHidden = () => {
-      if (document.hidden) setGameState('paused')
-    }
+      if (document.hidden) setGameState("paused");
+    };
     const pauseOnEscape = (event) => {
-      if (event.key !== 'Escape' || event.repeat) return
-      event.preventDefault()
-      setGameState('paused')
-    }
-    window.addEventListener('keydown', pauseOnEscape)
-    document.addEventListener('visibilitychange', pauseWhenHidden)
+      if (event.key !== "Escape" || event.repeat) return;
+      event.preventDefault();
+      setGameState("paused");
+    };
+    window.addEventListener("keydown", pauseOnEscape);
+    document.addEventListener("visibilitychange", pauseWhenHidden);
     return () => {
-      window.removeEventListener('keydown', pauseOnEscape)
-      document.removeEventListener('visibilitychange', pauseWhenHidden)
-    }
-  }, [gameState])
+      window.removeEventListener("keydown", pauseOnEscape);
+      document.removeEventListener("visibilitychange", pauseWhenHidden);
+    };
+  }, [gameState]);
 
   // 게임 시작
   const startGame = () => {
-    setProgress(EMPTY_FLIGHT_PROGRESS)
-    setGameState('playing')
-  }
+    setProgress(EMPTY_FLIGHT_PROGRESS);
+    setGameState("playing");
+  };
 
   // 게임 재시작
   const restartGame = () => {
-    startGame()
-    setFlightId((id) => id + 1)
-  }
+    startGame();
+    setFlightId((id) => id + 1);
+  };
 
   // 메인 화면으로 이동
   const goHome = () => {
-    setGameState('start')
-  }
+    setGameState("start");
+  };
 
   return (
     <div className="app">
-      {gameState === 'start' && (
-        <StartScreen onStart={startGame} />
-      )}
+      {gameState === "start" && <StartScreen onStart={startGame} />}
 
       {inFlight && (
         <PlayingScreen
@@ -475,7 +702,7 @@ function App() {
           sceneContainer={sceneContainer}
           ringDirection={ringDirection}
           isPaused={isPaused || docked}
-          onPause={() => setGameState('paused')}
+          onPause={() => setGameState("paused")}
         />
       )}
 
@@ -485,28 +712,31 @@ function App() {
           maxSpeed={progress.maxSpeed ?? 100}
           initialCircuit={dockedCircuit}
           onNewCircuit={() => {
-            lastCircuit.current = createCircuit(lastCircuit.current)
-            return lastCircuit.current
+            lastCircuit.current = createCircuit(lastCircuit.current);
+            return lastCircuit.current;
           }}
           onRepair={() => scene.current?.resolveStorm()}
           onTakeOff={() => {
-            scene.current?.takeOff()
-            setGameState('playing')
+            scene.current?.takeOff();
+            setGameState("playing");
           }}
-          onFinish={() => setGameState('result')}
+          onFinish={() => setGameState("result")}
         />
       )}
 
       {isPaused && (
-        <PauseScreen storm={progress.storm}
-          onFinish={() => { if (scene.current?.finish()) setGameState('result') }}
-          onResume={() => setGameState('playing')}
+        <PauseScreen
+          storm={progress.storm}
+          onFinish={() => {
+            if (scene.current?.finish()) setGameState("result");
+          }}
+          onResume={() => setGameState("playing")}
           onRestart={restartGame}
           onHome={goHome}
         />
       )}
 
-      {gameState === 'result' && (
+      {gameState === "result" && (
         <ResultScreen
           progress={progress}
           onRestart={restartGame}
@@ -514,7 +744,7 @@ function App() {
         />
       )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
