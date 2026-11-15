@@ -516,7 +516,7 @@ html, body, #root { min-height: 100%; }
   .result-score-card { container-type: inline-size; }
   .result-score-card .result-card-label { font-size: 12px; }
   .result-score-card .result-score {
-    font-size: clamp(38px, min(5.5vw, 8dvh, 22cqi), 72px);
+    font-size: clamp(24px, min(5.5vw, 8dvh, 16cqi), 72px);
     line-height: 1.12;
   }
   .result-score-card .result-score-breakdown {

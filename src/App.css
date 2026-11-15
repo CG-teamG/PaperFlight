@@ -920,6 +920,7 @@ h2.result-card-label {
 .result-score {
   display: flex;
   align-items: baseline;
+  justify-content: center;
   gap: 8px;
   white-space: nowrap;
   margin-top: 3px;
