@@ -1,10 +1,3 @@
-// ============================================================
-// 파일명: padTexture.js
-// 담당자: 선유 - 3D 그래픽
-// 역할: 착륙 지점 "H" 표식 이미지를 만든다. (게임 장면의 착륙 패드와 결과 화면 탐험 지도가 함께 사용)
-// ============================================================
-
-// 패드 윗면: 밝은 주황 원판 + 흰 테두리 + 굵은 흰색 H
 export function createPadTexture(THREE) {
   const S = 512;
   const c = document.createElement("canvas");
@@ -41,7 +34,6 @@ export function createPadTexture(THREE) {
   return t;
 }
 
-// 멀리서 보이는 마커: 노란 둥근 배지 안의 흰색 H (화면 크기 고정 스프라이트용)
 export function createHMarkerTexture(THREE) {
   const S = 128;
   const c = document.createElement("canvas");
@@ -49,24 +41,31 @@ export function createHMarkerTexture(THREE) {
   const g = c.getContext("2d");
   const mid = S / 2;
 
-  g.fillStyle = "rgba(20,30,60,0.55)";
+  // Outline the amber strokes so the H stays legible over the beacon.
+  const amber = "#ffd287";
+  const ink = "#45301e";
   g.beginPath();
-  g.arc(mid, mid, mid - 4, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = "#ffb300";
-  g.beginPath();
-  g.arc(mid, mid, mid - 12, 0, Math.PI * 2);
-  g.fill();
-  g.strokeStyle = "#ffffff";
-  g.lineWidth = 6;
+  g.arc(mid, mid, mid - 10, 0, Math.PI * 2);
+  g.lineWidth = 11;
+  g.strokeStyle = ink;
+  g.stroke();
+  g.lineWidth = 7;
+  g.strokeStyle = amber;
   g.stroke();
 
-  g.fillStyle = "#ffffff";
-  const bar = 15;
-  const h = 30;
-  g.fillRect(mid - h - bar / 2, mid - h * 1.05, bar, h * 2.1);
-  g.fillRect(mid + h - bar / 2, mid - h * 1.05, bar, h * 2.1);
-  g.fillRect(mid - h, mid - bar / 2, h * 2, bar);
+  g.beginPath();
+  g.moveTo(47, 39);
+  g.lineTo(47, 89);
+  g.moveTo(81, 39);
+  g.lineTo(81, 89);
+  g.moveTo(47, mid);
+  g.lineTo(81, mid);
+  g.lineWidth = 14;
+  g.strokeStyle = ink;
+  g.stroke();
+  g.lineWidth = 10;
+  g.strokeStyle = amber;
+  g.stroke();
 
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;

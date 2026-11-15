@@ -33,7 +33,7 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
   configureRenderer(THREE, renderer)
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 6500)
-  const environment = createEnvironment(THREE, scene, { worldRingGuide: false })
+  const environment = createEnvironment(THREE, scene)
   const island = environment.getMapData()
   const airplane = new THREE.Group()
   airplane.name = 'Airplane'
@@ -150,23 +150,40 @@ export function createGameScene(THREE, container, onProgress, ringDirection, onD
     ringInView.applyMatrix4(camera.matrixWorldInverse)
     const { x, y, z } = ringInView
     ringInView.applyMatrix4(camera.projectionMatrix)
-    const visible = z < -camera.near && z > -camera.far &&
-      Math.abs(ringInView.x) <= 1 && Math.abs(ringInView.y) <= 1
-    ringDirection.hidden = !storm && visible
-    ringDirection.dataset.target = storm ? 'landing' : 'ring'
-    ringDirection.dataset.inView = String(visible)
-    ringDirection.dataset.turn = x < 0 ? 'left' : 'right'
-    const directionX = visible ? ringInView.x : x * camera.projectionMatrix.elements[0]
-    const directionY = visible ? ringInView.y : y * camera.projectionMatrix.elements[5]
-    const edgeScale = Math.max(Math.abs(directionX), Math.abs(directionY)) || 1
-    ringDirection.style.setProperty('--guide-x', `${50 + 39 * directionX / (visible ? 1 : edgeScale)}%`)
-    ringDirection.style.setProperty('--guide-y', `${50 - 34 * directionY / (visible ? 1 : edgeScale)}%`)
-    if (!visible) {
-      const angle = storm
-        ? Math.abs(x) < 0.001 ? Math.PI / 2 : Math.sign(x) * Math.PI / 2
-        : Math.hypot(x, y) < 0.001 ? Math.PI : Math.atan2(x, y)
-      ringDirection.style.setProperty('--ring-angle', `${angle}rad`)
+    const inFront = z < -camera.near
+    if (storm) {
+      // Only horizontal alignment determines whether the pilot needs to turn.
+      const horizontallyAligned = inFront && Math.abs(ringInView.x) <= 1
+      const directlyBehind = !inFront && Math.abs(x) <= Math.max(camera.near, Math.abs(z) * 0.12)
+      const turn = directlyBehind ? 'behind' : x < 0 ? 'left' : 'right'
+
+      ringDirection.hidden = false
+      ringDirection.dataset.target = 'landing'
+      ringDirection.dataset.inView = String(horizontallyAligned)
+      ringDirection.dataset.turn = horizontallyAligned ? '' : turn
+      ringDirection.style.setProperty('--guide-x', `${horizontallyAligned ? 50 + 39 * ringInView.x : 50}%`)
+      ringDirection.style.setProperty('--guide-y', `${horizontallyAligned ? 50 - 34 * Math.max(-1, Math.min(1, ringInView.y)) : 50}%`)
+      if (!horizontallyAligned) {
+        const angle = directlyBehind ? Math.PI : Math.sign(x) * Math.PI / 2
+        ringDirection.style.setProperty('--ring-angle', `${angle}rad`)
+      }
+      return
     }
+
+    const visible = inFront && z > -camera.far &&
+      Math.abs(ringInView.x) <= 1 && Math.abs(ringInView.y) <= 1
+    ringDirection.hidden = visible
+    ringDirection.dataset.target = 'ring'
+    ringDirection.dataset.inView = String(visible)
+    if (visible) return
+
+    const directionX = x * camera.projectionMatrix.elements[0]
+    const directionY = y * camera.projectionMatrix.elements[5]
+    const edgeScale = Math.max(Math.abs(directionX), Math.abs(directionY)) || 1
+    ringDirection.style.setProperty('--guide-x', `${50 + 39 * directionX / edgeScale}%`)
+    ringDirection.style.setProperty('--guide-y', `${50 - 34 * directionY / edgeScale}%`)
+    const angle = Math.hypot(x, y) < 0.001 ? Math.PI : Math.atan2(x, y)
+    ringDirection.style.setProperty('--ring-angle', `${angle}rad`)
   }
 
   function render() {

@@ -118,7 +118,6 @@ function ridged(x, z, oct = 5) {
 export const RING_RADIUS = 22;
 export const ACTIVE_RING_COLOR = "#58d8ff";
 // 지역 발견 반지름 -> ExplorationSystem에 radius로 반영
-export const REGION_RADIUS = 300;
 
 // 링은 지형 4종에 4개씩(총 16개), 각 지형 구역 안에서 매번 랜덤하게 배치된다(난수)
 export const RING_TERRAINS = ["mountain", "forest", "canyon", "sea"];
@@ -184,23 +183,6 @@ const warpX = (x, z, s, amp) =>
 const warpZ = (x, z, s, amp) =>
   z + (fbm(x * s + 5.7, z * s + 9.1, 3) - 0.5) * amp;
 
-// 링 랜덤 배치로 변경
-// export const RING_PATH = [
-//   { x: -60, z: -170, clearance: 50 },
-//   { x: 120, z: -250, clearance: 60 },
-//   { x: 300, z: -300, clearance: 90 }, // 산
-//   { x: 480, z: -480, clearance: 90 },
-//   { x: 620, z: -700, clearance: 60 }, // 협곡
-//   { x: 400, z: -800, clearance: 60 },
-//   { x: 150, z: -650, clearance: 60 },
-//   { x: -100, z: -700, clearance: 90 }, // 산
-//   { x: -400, z: -450, clearance: 70 },
-//   { x: -650, z: -200, clearance: 55 }, // 숲
-//   { x: -700, z: 200, clearance: 55 },
-//   { x: -400, z: 350, clearance: 55 },
-//   { x: -100, z: 300, clearance: 50 },
-//   { x: 150, z: 260, clearance: 40 }, // 착륙 지점 직전
-// ];
 
 // 좌표 주변 4개 구역 중심에 대한 보간 가중치 -> 구역 경계에서 지형이 부드럽게 이어짐
 // band: 0.5면 부드럽게(높이용), 작을수록 경계가 또렷해짐(색상 공개용)
@@ -230,14 +212,6 @@ function cornerWeights(x, z, band) {
     [j1 * N + i0, (1 - fx) * fz],
     [j1 * N + i1, fx * fz],
   ];
-}
-
-// 좌표가 속한 구역 index (맵 밖이면 -1)
-function zoneIndexAt(x, z) {
-  const c = Math.floor((x + HALF) / ZONE_SIZE);
-  const r = Math.floor((z + HALF) / ZONE_SIZE);
-  if (c < 0 || r < 0 || c >= ZONE_GRID || r >= ZONE_GRID) return -1;
-  return r * ZONE_GRID + c;
 }
 
 const TYPE_HEIGHT = {
@@ -909,12 +883,6 @@ export function createEnvironment(THREE, scene, options = {}) {
            + sin((p.x + p.y) * 0.09 + t * 1.9) * 0.25;
     }
            
-    // vec2 waveGrad(vec2 p, float t) {
-    //   float a = cos((p.x + p.y) * 0.09 + t * 1.9) * 0.25 * 0.09;
-    //   return vec2(cos(p.x * 0.045 + t * 1.3) * 0.6 * 0.045 + a,
-    //               -sin(p.y * 0.05 + t * 1.0) * 0.5 * 0.05 + a);
-    // }
-
     void main() {
       vec4 wp = modelMatrix * vec4(position, 1.0);
       float depth = -sampleH(wp.xz);
@@ -1371,10 +1339,6 @@ export function createEnvironment(THREE, scene, options = {}) {
     passed: { glow: 0.25, halo: 0.08 },
   };
   const rings = [];
-  // const ringPositions = RING_PATH.map(
-  //   (r) => new THREE.Vector3(r.x, groundMax(r.x, r.z, 60) + r.clearance, r.z),
-  // );
-
   // 지형 종류마다 {RINGS_PER_TERRAIN}개씩
   // 각 지형 구역 안에서 랜덤 위치를 뽑는다.
   function generateRingSpots(rand) {
@@ -1499,7 +1463,6 @@ export function createEnvironment(THREE, scene, options = {}) {
     }
     rings.length = 0; // 같은 배열을 유지 (env.rings 참조가 깨지지 않게)
     activeRing = -1;
-    guide.visible = false;
     for (const b of bursts) disposeBurst(b);
     bursts.length = 0;
   }
@@ -1593,143 +1556,6 @@ export function createEnvironment(THREE, scene, options = {}) {
     const order = ring.state === "active" ? 5 : 0;
     ring._main.renderOrder = order;
     ring._halo.renderOrder = order;
-  }
-
-  // ---- 목표 링 안내물 (활성 링 1개에만 붙여 쓴다) ----
-  //  1) 세로 빛기둥: 안개 무시(fog:false) + 거리에 비례해 굵어짐 -> 맵 어디서든 위치를 알 수 있음
-  //  2) 마커(▼): 화면 크기가 거리와 무관하게 일정(sizeAttenuation:false), 지형/구름 뒤에서도 보임
-  //  3) 파동: 링 평면에서 바깥으로 퍼지는 고리 -> 링의 구멍 방향과 "여기다"가 한눈에 보임
-  const guide = new THREE.Group();
-  guide.name = "RingGuide";
-  guide.visible = false;
-  root.add(guide);
-
-  const activeCss = "#" + new THREE.Color(RING_COLORS.active).getHexString();
-  const markerTex = (() => {
-    const c = document.createElement("canvas");
-    c.width = c.height = 128;
-    const g = c.getContext("2d");
-    g.beginPath();
-    g.moveTo(22, 26);
-    g.lineTo(106, 26);
-    g.lineTo(64, 104);
-    g.closePath();
-    g.lineJoin = "round";
-    g.lineWidth = 16; // 어두운 바깥 테두리 -> 밝은 하늘/눈 위에서도 보임
-    g.strokeStyle = "rgba(20,30,60,0.6)";
-    g.stroke();
-    g.lineWidth = 8;
-    g.strokeStyle = "#ffffff";
-    g.stroke();
-    g.fillStyle = activeCss;
-    g.fill();
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    return t;
-  })();
-
-  const guideBeam = new THREE.Mesh(
-    new THREE.CylinderGeometry(2.2, 2.2, 1200, 12, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: RING_COLORS.active,
-      transparent: true,
-      opacity: 0.32,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      fog: false,
-      toneMapped: false,
-    }),
-  );
-  guideBeam.renderOrder = 6;
-  guide.add(guideBeam);
-
-  const guideMarker = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: markerTex,
-      transparent: true,
-      depthTest: false, // 지형이나 구름에 가려도 항상 보임 (웨이포인트)
-      depthWrite: false,
-      sizeAttenuation: false, // 거리와 상관없이 화면 크기 고정
-      fog: false,
-      toneMapped: false,
-    }),
-  );
-  guideMarker.scale.set(0.06, 0.06, 1); // 화면 높이의 약 5%
-  guideMarker.renderOrder = 10;
-  guide.add(guideMarker);
-
-  const guideRipples = new THREE.Group(); // 링과 같은 평면(회전)을 따라감
-  guide.add(guideRipples);
-  const rippleMats = [0, 1].map(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: RING_COLORS.active,
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        fog: false,
-        toneMapped: false,
-      }),
-  );
-  const rippleMeshes = rippleMats.map((m) => {
-    const mesh = new THREE.Mesh(
-      new THREE.TorusGeometry(RING_RADIUS, RING_RADIUS * 0.05, 8, 64),
-      m,
-    );
-    mesh.renderOrder = 6;
-    guideRipples.add(mesh);
-    return mesh;
-  });
-  const MARKER_LIFT = RING_RADIUS * 1.8; // 링 위로 띄우는 높이
-
-  function updateGuide(delta, planePosition) {
-    const r = activeRing >= 0 ? rings[activeRing] : null;
-    const on = !!r && r.state === "active";
-    guide.visible = on;
-    if (!on) return;
-    guide.position.copy(r.position);
-    guideRipples.quaternion.copy(r.mesh.quaternion);
-    const d = planePosition ? planePosition.distanceTo(r.position) : 300;
-    // 멀수록 기둥을 굵게 (화면에서 항상 몇 픽셀은 보이도록)
-    const w = Math.min(8, Math.max(1, d / 220));
-    guideBeam.scale.set(w, 1, w);
-    // 가까워지면 마커는 서서히 사라지고 링 자체가 주인공이 된다
-    guideMarker.material.opacity = smooth(110, 260, d);
-    guideMarker.position.y = MARKER_LIFT + Math.sin(elapsed * 3.2) * 3;
-    // 파동: 1 -> 1.9배로 퍼지며 사라짐, 두 개가 반 주기 어긋나게
-    rippleMeshes.forEach((m, i) => {
-      const ph = (elapsed * 0.7 + i * 0.5) % 1;
-      m.scale.setScalar(1 + ph * 0.9);
-      rippleMats[i].opacity = 0.6 * (1 - ph) * (1 - ph);
-    });
-  }
-
-  // HUD(화살표 / 거리 표시)용: 활성 링이 화면 어디에 있는지 알려 준다
-  const _vp = new THREE.Vector3();
-  const _vc = new THREE.Vector3();
-  function getActiveRingInfo(camera) {
-    const r = activeRing >= 0 ? rings[activeRing] : null;
-    if (!r || r.state !== "active" || !camera) return null;
-    camera.updateMatrixWorld();
-    _vc.copy(r.position).applyMatrix4(camera.matrixWorldInverse);
-    const behind = _vc.z > 0; // 카메라 뒤쪽
-    _vp.copy(r.position).project(camera); // NDC (-1 ~ 1)
-    let x = _vp.x,
-      y = _vp.y;
-    if (behind) {
-      x = -x; // 뒤에 있으면 좌우/상하가 뒤집혀 나오므로 되돌린다
-      y = -y;
-    }
-    return {
-      id: r.id,
-      terrain: r.terrain,
-      distance: camera.position.distanceTo(r.position),
-      ndc: { x, y },
-      behind,
-      onScreen: !behind && Math.abs(x) <= 1 && Math.abs(y) <= 1,
-    };
   }
 
   let activeRing = -1; // rings 배열 내부 index
@@ -1982,7 +1808,7 @@ export function createEnvironment(THREE, scene, options = {}) {
       toneMapped: false,
     }),
   );
-  padMarker.scale.set(0.055, 0.055, 1);
+  padMarker.scale.set(0.08, 0.08, 1);
   padMarker.position.set(LANDING_PAD.x, LANDING_PAD.y + 85, LANDING_PAD.z);
   padMarker.renderOrder = 10;
   root.add(padMarker);
@@ -2007,38 +1833,11 @@ export function createEnvironment(THREE, scene, options = {}) {
     }));
   }
 
-  // ExplorationSystem에 넘길 지역 데이터: { id, name, type, position, radius, ignoreY }
-  // ignoreY: 높이(y)는 무시하고 수평(x, z) 거리로만 판정
-  // (현재 ExplorationSystem은 아직 처리하지 않으므로, 연결 시 env.getZoneState()를 쓰거나 syncFromReveal 방식으로 동기화한다)
-  function getRegionData() {
-    return zones.map((z) => ({
-      id: z.id,
-      name: z.name,
-      type: z.type,
-      position: { x: z.center.x, y: 0, z: z.center.z },
-      radius: REGION_RADIUS,
-      ignoreY: true,
-    }));
-  }
-
   // 전체 탐험률: 공개된 칸 비율 (0~1). 비행기가 가까이 지나간 면적이 곧 탐험률이다.
   function getExplorationRate() {
     return coverage;
   }
 
-  // 지형 종류별 발견 현황 { mountain: { discovered, total }, ... } (평원 포함)
-  // 구역은 25% 이상 공개되면 "발견". 결과 화면의 "발견한 지형의 종류와 개수"에 사용
-  function getTerrainProgress() {
-    const out = {};
-    for (const z of zones) {
-      out[z.type] ??= { discovered: 0, total: 0 };
-      out[z.type].total++;
-      if (z.discovered) out[z.type].discovered++;
-    }
-    return out;
-  }
-
-  // 구역별 공개 현황 [{ id, fraction, discovered }] (ExplorationSystem.syncFromReveal에 전달)
   function getZoneState() {
     return zones.map((z) => ({
       id: z.id,
@@ -2168,7 +1967,6 @@ export function createEnvironment(THREE, scene, options = {}) {
       }
     }
 
-    if (options.worldRingGuide !== false) updateGuide(delta, planePosition); // 목표 링 안내물
 
     // 통과 연출
     for (let i = bursts.length - 1; i >= 0; i--) {
@@ -2248,7 +2046,6 @@ export function createEnvironment(THREE, scene, options = {}) {
     });
     cloudTextures.forEach((t) => t.dispose()); // 구름 이미지 해제
     detailTex.dispose(); // 지면 질감 해제
-    markerTex.dispose(); // 목표 링 마커 이미지 해제
     heightTex.dispose(); // 물 셰이더용 높이 텍스처 해제
     revealTex.dispose(); // 탐험 공개 텍스처 해제
     burstTex.dispose(); // 파티클 이미지 해제
@@ -2276,23 +2073,13 @@ export function createEnvironment(THREE, scene, options = {}) {
     }, // 바람 방향 바꾸기 (구름 이동)
     rings,
     setActiveRing,
-    getActiveRingInfo, // HUD용: 목표 링의 화면 위치 / 거리
     markRingPassed,
     getRingData, // 링
     getExplorationRate,
-    getZoneState, // 구역별 공개 현황 -> ExplorationSystem.syncFromReveal
+    getZoneState, // 구역별 공개 및 발견 현황
     consumeDiscovered, // 새로 발견된 구역
     getRevealGrid, // 결과 화면 탐험 지도용 공개 격자
     getMapData, // 결과 화면 탐험 지도용 데이터 (지형 + 공개 + 링 + 시작/착륙)
-    getTerrainProgress, // 탐험률 / 지형 종류별 발견 현황
-    zones,
-    seed, // 이 맵의 시드 (결과 화면에 표시하거나 "같은 맵 다시"에 사용)
-    layout: ZONE_TYPES.slice(), // 16칸 지형 종류 (행 우선: [z][x])
-    getRegionData,
-    getZoneAt: (x, z) => {
-      const i = zoneIndexAt(x, z);
-      return i < 0 ? -1 : i + 1;
-    },
     start,
     landingPad: {
       position: new THREE.Vector3(
