@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 파일명: Environment.js
 // 담당자: 팀원 A(문선유) - 3D 그래픽
 // 역할: 게임의 3D 환경과 시각적 요소를 생성한다.
@@ -12,6 +12,7 @@
 
 // 맵 크기
 import { createPadTexture, createHMarkerTexture } from "./padTexture.js";
+import { planLandmarks, createLandmarks } from "./landmarks/Landmarks.js";
 
 export const MAP_SIZE = 2000;
 export const ZONE_GRID = 4;
@@ -148,7 +149,7 @@ const DETAIL_TEXTURE_REPEAT = 60; // 지면 질감이 반복되는 횟수
 
 // 구역 하나당 나무 배치 개수
 const TREE_TRIES = {
-  forest: 900,
+  forest: 650, // 조형물이 가려지지 않도록 줄임 (예전 900)
   plain: 110,
   mountain: 240,
   canyon: 0,
@@ -182,7 +183,6 @@ const warpX = (x, z, s, amp) =>
   x + (fbm(x * s + 11.1, z * s + 3.3, 3) - 0.5) * amp;
 const warpZ = (x, z, s, amp) =>
   z + (fbm(x * s + 5.7, z * s + 9.1, 3) - 0.5) * amp;
-
 
 // 좌표 주변 4개 구역 중심에 대한 보간 가중치 -> 구역 경계에서 지형이 부드럽게 이어짐
 // band: 0.5면 부드럽게(높이용), 작을수록 경계가 또렷해짐(색상 공개용)
@@ -265,6 +265,11 @@ function slopeAt(x, z) {
   );
 }
 
+// 조형물 부지 평탄화 목록 (planLandmarks 결과, 시드마다 새로 채워짐): { x, z, y, r0, r1, k }
+let PADS = [];
+// 골짜기(통나무 다리 밑 개울) 파내기 목록: { x, z, dx, dz, halfLen, w, depth }
+let GULLIES = [];
+
 function heightAt(x, z) {
   let h = 0;
   for (const [zi, w] of cornerWeights(x, z, 0.5)) {
@@ -296,7 +301,37 @@ function heightAt(x, z) {
   // 맵 가장자리는 바다로 가라앉힘
   const edge = Math.max(Math.abs(x), Math.abs(z));
   h = lerp(h, -40, smooth(HALF - 140, HALF, edge));
+
+  // 조형물(마을/산장/전망대...) 밑 땅은 평탄하게 (착륙장과 같은 방식)
+  for (let i = 0; i < PADS.length; i++) {
+    const p = PADS[i];
+    const dx = x - p.x,
+      dz = z - p.z;
+    if (dx * dx + dz * dz >= p.r1 * p.r1) continue;
+    h = lerp(h, p.y, p.k * (1 - smooth(p.r0, p.r1, Math.hypot(dx, dz))));
+  }
+  for (let i = 0; i < GULLIES.length; i++) {
+    const g = GULLIES[i];
+    const dx = x - g.x,
+      dz = z - g.z;
+    const along = dx * g.dx + dz * g.dz;
+    const across = Math.abs(-dx * g.dz + dz * g.dx);
+    if (across >= g.w || Math.abs(along) >= g.halfLen) continue;
+    // 단면은 U자, 양 끝은 서서히 얕아진다
+    h -=
+      g.depth *
+      (1 - smooth(g.w * 0.2, g.w, across)) *
+      (1 - smooth(g.halfLen * 0.55, g.halfLen, Math.abs(along)));
+  }
   return h;
+}
+
+// 눈 덮임 정도 0~1: 지형 색상(groundColor)과 똑같은 식 -> 나무의 눈도 산의 눈 경계를 그대로 따라간다
+function snowAt(x, z) {
+  const h = heightAt(x, z);
+  const patch = fbm(x * 0.025 + 4.4, z * 0.025 + 9.9, 3);
+  const cliff = smooth(0.7, 1.3, slopeAt(x, z));
+  return smooth(150, 215, h + (patch - 0.5) * 50) * (1 - cliff * 0.75);
 }
 
 // 지형 색상 (높이 + 지형 종류 + 경사)
@@ -445,6 +480,8 @@ function generateZoneLayout(rand) {
 // 시드를 정해서 이후 heightAt()/구역 종류가 모두 그 시드를 따르게 한다.
 // classic = true면 기존 고정 지형 그대로
 function setWorldSeed(seed, classic = false) {
+  PADS = [];
+  GULLIES = [];
   if (classic) {
     NOISE_SEED = 0;
     CANYON_PHASE = 0;
@@ -505,6 +542,24 @@ export function createEnvironment(THREE, scene, options = {}) {
     };
   });
 
+  // 조형물 계획: 지형을 만들기 "전에" 부지를 정해서 평탄화 목록(PADS)에 넣는다
+  //  options.landmarks === false 이면 조형물 없이 예전 모습 그대로
+  const plan =
+    options.landmarks === false
+      ? null
+      : planLandmarks({
+          heightAt,
+          slopeAt,
+          snowAt,
+          zones,
+          seed,
+          HALF,
+          LANDING_PAD,
+          START,
+        });
+  PADS = plan ? plan.pads : [];
+  GULLIES = plan ? plan.gullies : [];
+
   const ease = (p) => p * p * (3 - 2 * p);
 
   // ---- 지도 공개 격자 ----
@@ -536,6 +591,7 @@ export function createEnvironment(THREE, scene, options = {}) {
   const revealUniforms = {
     uRevealTex: { value: revealTex },
     uRevealInfo: { value: new THREE.Vector2(HALF, MAP_SIZE) }, // x: 맵 절반, y: 맵 크기
+    uRevealForce: { value: 0 }, // 1이면 전체 공개로 취급 (전체 지도 보기)
   };
 
   // 지형/나무/물 셰이더가 공통으로 쓰는 GLSL: 공개 정도를 읽고 색을 회색조 <-> 컬러로 바꾼다
@@ -1157,6 +1213,7 @@ export function createEnvironment(THREE, scene, options = {}) {
       )
         continue;
       if (Math.hypot(x - START.x, zz - START.z) < 25) continue;
+      if (plan && plan.blocksTree(x, zz)) continue; // 조형물 주변에는 나무를 심지 않음
 
       const s = 0.8 + rand() * 0.9;
       const ry = rand() * Math.PI * 2;
@@ -1177,6 +1234,57 @@ export function createEnvironment(THREE, scene, options = {}) {
     makeInstances(pineGeo, pineMat, pines);
     makeInstances(roundGeo, roundMat, rounds);
   });
+
+  // ---- 지형별 조형물 (마을/꽃밭/전망대/산장/바위 아치/등대...) + 전체 지도 보기 ----
+  let overviewOn = false;
+  const fullTexData = new Uint8Array(RG * RG * 2);
+  for (let i = 0; i < RG * RG; i++) fullTexData[i * 2] = 255;
+  const fullRevealTex = new THREE.DataTexture(
+    fullTexData,
+    RG,
+    RG,
+    THREE.RGFormat,
+    THREE.UnsignedByteType,
+  );
+  fullRevealTex.minFilter = fullRevealTex.magFilter = THREE.LinearFilter;
+  fullRevealTex.needsUpdate = true;
+
+  const landmarks = plan
+    ? createLandmarks(
+        THREE,
+        {
+          heightAt,
+          slopeAt,
+          applyReveal,
+          // 조형물 반응(불/연기/개화)용: 전체 지도 보기에서는 모두 켜진 모습으로 보인다
+          revealAtXZ: (x, z) => (overviewOn ? 1 : revealAtXZ(x, z)),
+          revealTrue: revealAtXZ, // 발견 판정은 진짜 공개 정도만 본다
+          revealUniforms,
+          HALF,
+        },
+        plan,
+      )
+    : null;
+  if (landmarks) root.add(landmarks.group);
+
+  // 탐험과 별개로 전체 맵을 컬러로 보여준다 (공개 데이터는 건드리지 않음)
+  let stormFog = false;
+  function setOverview(on) {
+    overviewOn = !!on;
+    revealUniforms.uRevealTex.value = overviewOn ? fullRevealTex : revealTex;
+    revealUniforms.uRevealForce.value = overviewOn ? 1 : 0;
+    applyFog();
+    updateVeils();
+  }
+  function applyFog() {
+    if (overviewOn) {
+      scene.fog.near = 2500;
+      scene.fog.far = 9000;
+    } else {
+      scene.fog.near = stormFog ? 100 : 500;
+      scene.fog.far = stormFog ? 850 : 3000;
+    }
+  }
 
   // 구름 (바람 방향에 따라 천천히 흐르도록 구현)
   function createCloudTexture(seed) {
@@ -1297,6 +1405,10 @@ export function createEnvironment(THREE, scene, options = {}) {
 
   function updateVeils() {
     for (const v of veils) {
+      if (overviewOn) {
+        v.puff.visible = false; // 전체 지도 보기: 구름 베일 숨김
+        continue;
+      }
       // 구름 덩이 중심과 주변 네 곳의 공개 정도 평균
       const o = v.w * 0.3;
       const r =
@@ -1331,7 +1443,11 @@ export function createEnvironment(THREE, scene, options = {}) {
 
   // 색 대비: 활성(목표) 링은 지형(초록/갈색/주황/흰색)·바다(파랑)·하늘(연한 파랑)·구름(회색) 어디에도
   // 없는 마젠타 계열로 → 배경과 섞이지 않는다. 대기 중 링은 눈에 덜 띄게 낮춘다.
-  const RING_COLORS = { idle: 0xffb15c, active: Number.parseInt(ACTIVE_RING_COLOR.slice(1), 16), passed: 0x5fe08a };
+  const RING_COLORS = {
+    idle: 0xffb15c,
+    active: Number.parseInt(ACTIVE_RING_COLOR.slice(1), 16),
+    passed: 0x5fe08a,
+  };
   const RING_LOOK = {
     //          emissive, halo 투명도
     idle: { glow: 0.35, halo: 0.12 },
@@ -1345,6 +1461,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     const spots = [];
     const limit = HALF - 150; // 맵 가장자리(바다로 가라앉는 곳)는 피함
     const farEnough = (x, z) =>
+      !(plan && plan.blocksRing(x, z)) && // 조형물 속에 링이 생기지 않게
       spots.every((s) => Math.hypot(s.x - x, s.z - z) >= RING_MIN_SPACING) &&
       Math.hypot(x - START.x, z - START.z) >= RING_MIN_SPACING &&
       Math.hypot(x - LANDING_PAD.x, z - LANDING_PAD.z) >=
@@ -1921,6 +2038,7 @@ export function createEnvironment(THREE, scene, options = {}) {
     updateVeils();
     buildRings();
     setActiveRing(1);
+    landmarks?.reset();
   }
 
   // 매 프레임 갱신 조건
@@ -1938,6 +2056,9 @@ export function createEnvironment(THREE, scene, options = {}) {
 
     // 물결 (셰이더가 시간으로 계산)
     waterTime.value = elapsed;
+
+    // 조형물: 바람에 흔들림 / 탐험하면 불·연기·개화
+    landmarks?.update(delta, elapsed, wind, elapsed);
 
     // 구름 흐름
     for (const c of clouds) {
@@ -1966,7 +2087,6 @@ export function createEnvironment(THREE, scene, options = {}) {
         r._haloMat.opacity = RING_LOOK.passed.halo + 0.1 * flashAmt;
       }
     }
-
 
     // 통과 연출
     for (let i = bursts.length - 1; i >= 0; i--) {
@@ -2037,6 +2157,8 @@ export function createEnvironment(THREE, scene, options = {}) {
 
   // 정리 (dispose)
   function dispose() {
+    landmarks?.dispose();
+    fullRevealTex.dispose();
     root.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
       if (o.material)
@@ -2062,8 +2184,8 @@ export function createEnvironment(THREE, scene, options = {}) {
     reset,
     getGroundHeight: (x, z) => Math.max(heightAt(x, z), SEA_LEVEL), // 지면 충돌 판정용 (바다는 수면 높이)
     setStorm(active) {
-      scene.fog.near = active ? 100 : 500;
-      scene.fog.far = active ? 850 : 3000;
+      stormFog = !!active;
+      applyFog();
       scene.fog.color.copy(horizonColor);
       if (active) scene.fog.color.multiplyScalar(0.55);
     },
@@ -2071,6 +2193,10 @@ export function createEnvironment(THREE, scene, options = {}) {
       wind.x = x;
       wind.z = z;
     }, // 바람 방향 바꾸기 (구름 이동)
+    landmarks, // 조형물 (발견 현황: landmarks.getProgress())
+    landmarkPlan: plan,
+    setOverview, // 탐험과 별도로 전체 맵을 컬러로 보기
+    isOverview: () => overviewOn,
     rings,
     setActiveRing,
     markRingPassed,
