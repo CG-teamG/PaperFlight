@@ -501,16 +501,6 @@ button:focus-visible {
   margin-top: 5px;
 }
 
-.flight-route-map {
-  --terrain-color: #244d65;
-  display: block;
-  width: 100%;
-  height: clamp(78px, 14vh, 108px);
-  margin-top: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  background: var(--terrain-color);
-}
 
 .map-terrain-mountain { --terrain-color: #aea393; }
 .map-terrain-forest { --terrain-color: #60a17b; }
@@ -518,30 +508,10 @@ button:focus-visible {
 .map-terrain-plain { --terrain-color: #9fb67a; }
 .map-terrain-sea { --terrain-color: #244d65; }
 
-.flight-route-map path {
-  fill: var(--terrain-color);
-}
 
-.flight-route-map [data-elevation] {
-  filter: saturate(var(--survey-reveal, 0));
-}
 
-.flight-route-map [data-elevation="0"] {
-  opacity: 0.68;
-}
 
-.flight-route-map [data-elevation="1"] {
-  opacity: 0.85;
-}
 
-.flight-route-map .flight-route-line {
-  fill: none;
-  stroke: #dbfaff;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
 
 .flight-route-start {
   fill: #9ef5b7;
@@ -578,9 +548,6 @@ button:focus-visible {
   font-weight: 800;
 }
 
-.result-map-card .flight-route-map {
-  height: clamp(160px, 29vh, 260px);
-}
 
 .flight-route-legend {
   display: flex;

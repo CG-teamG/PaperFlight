@@ -26,7 +26,7 @@ import { EMPTY_FLIGHT_PROGRESS } from './game/FlightProgress.js'
 import { createGameScene } from './game/GameScene.js'
 import StormRepair from './StormRepair.jsx'
 import { createCircuit } from './game/RepairCircuit.js'
-import { BASE_RING_POINTS } from './game/RingSystem.js'
+import FlightInstructions from './FlightInstructions.jsx'
 import './App.css'
 import './MissionLayout.css'
 
@@ -60,6 +60,7 @@ function Logo() {
 // 시작 화면
 function StartScreen({ onStart }) {
   const preview = useRef(null)
+  const instructions = useRef(null)
   useEffect(() => {
     const scene = createGameScene(THREE, preview.current, () => {}, null, null, { preview: true })
     return () => scene.dispose()
@@ -70,14 +71,18 @@ function StartScreen({ onStart }) {
       <section className="start-content">
         <h1>PaperFlight</h1>
         <ol className="mission-steps">
-          <li><strong>섬 탐색</strong><span>낮게 날아 새 구역을 발견하고, 링을 통과해 점수를 얻으세요.</span></li>
+          <li><strong>섬 탐색</strong><span>종이비행기를 조작해 새 구역을 발견하고, 링을 통과해 점수를 획득하세요.</span></li>
           <li><strong>비상 귀환</strong><span>폭풍이 오면 화면의 H 표시를 따라 착륙하세요.</span></li>
           <li><strong>방재 장치 복구</strong><span>회로를 연결하고 다시 이륙하거나 비행을 마치세요.</span></li>
         </ol>
-        <button className="primary-button start-button" onClick={onStart}>
-          비행 시작하기
-          <span>→</span>
-        </button>
+        <div className="start-actions">
+          <button className="primary-button start-button" onClick={onStart}>
+            비행 시작하기 <span aria-hidden="true">→</span>
+          </button>
+          <button className="secondary-button" aria-haspopup="dialog" onClick={() => instructions.current.showModal()}>
+            게임 방법
+          </button>
+        </div>
 
         <div className="start-hint">
           {FLIGHT_CONTROLS.map(({ keys, label }) => (
@@ -87,6 +92,7 @@ function StartScreen({ onStart }) {
           ))}
         </div>
       </section>
+      <FlightInstructions dialog={instructions} controls={FLIGHT_CONTROLS} onContinue={onStart} continueLabel="게임 시작" />
     </main>
   )
 }
@@ -98,13 +104,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
     award, speed, maxSpeed = 100, recoveries, outsideSurveyArea,
     elapsed, guidance, recoveryReason, storm,
   } = progress
-  const [showControls, setShowControls] = useState(true)
   const discovery = progress.discovery
-  useEffect(() => {
-    if (!showControls) return
-    const timer = setTimeout(() => setShowControls(false), 12000)
-    return () => clearTimeout(timer)
-  }, [showControls])
 
   return (
     <main className="game-screen" data-storm={storm}>
@@ -112,7 +112,16 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
       {storm && <div className="storm-alert-edge" data-paused={isPaused} aria-hidden="true" />}
       {/* 상단 UI */}
       <header className="game-header">
-        <Logo />
+        <div className="flight-header-left">
+          <Logo />
+          <aside className="hud-panel exploration-panel" aria-label="비행 계기">
+            <dl className="flight-telemetry">
+              <div><dt>현재 속도</dt><dd><span>{Math.floor(speed)}</span> <small>u/s</small></dd></div>
+              <div><dt>최대 속도</dt><dd><span>{maxSpeed}</span> <small>u/s</small></dd></div>
+            </dl>
+            {storm && <p className="survey-status">탐험 · 득점 일시 중지</p>}
+          </aside>
+        </div>
 
         <div className={`flight-status ${isPaused ? 'paused' : ''}`}>
           <span className="status-dot" />
@@ -132,24 +141,29 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
             <small className="ring-tally">통과한 링 {passedRings}/{totalRings}</small>
             {award && !storm && (
               <div className="score-award" role="status" key={passedRings}>
-                <span>+{award.points}점</span>
-                {award.bonus > 0 && <small>속도 보너스 +{award.bonus}</small>}
+                <span>획득 +{award.points.toLocaleString()}점</span>
+                {award.bonus > 0 && (
+                  <small>(기본 {(award.points - award.bonus).toLocaleString()}점 · 속도 보너스 {award.bonus.toLocaleString()}점)</small>
+                )}
               </div>
             )}
           </div>
         </div>
+        {(storm || recoveries > 0) && <div className="ring-feedback">
+          {storm && <div className="storm-forecast emergency-status" data-active={!isPaused} role="status">
+            <strong>비상 착륙</strong> <span className="emergency-instruction">H 착륙장으로 즉시 귀환</span>
+          </div>}
+          {recoveries > 0 && (
+            <div className="ring-feedback-card recovery-feedback" role="status" aria-atomic="true" key={`recovery-${recoveries}`}>
+              <strong>{storm ? '안전 고도에서 귀환 재시도' : '출발 지점으로 복귀'}</strong>
+              <span>{RECOVERY_MESSAGES[recoveryReason]}</span>
+              {recoveryReason === 'terrain' && <span>최대 속도를 100&nbsp;u/s로 초기화했어요.</span>}
+              <span>탐험 기록은 유지돼요.</span>
+            </div>
+          )}
+        </div>}
       </header>
 
-      {storm && <div className="storm-forecast emergency-status" data-active={!isPaused} role="status">
-        <strong>비상 착륙</strong> <span className="emergency-instruction">H 착륙장으로 즉시 귀환</span>
-      </div>}
-      <aside className="hud-panel exploration-panel" aria-label="비행 계기">
-        <dl className="flight-telemetry">
-          <div><dt>현재 속도</dt><dd><span>{Math.floor(speed)}</span> <small>u/s</small></dd></div>
-          <div><dt>최대 속도</dt><dd><span>{maxSpeed}</span> <small>u/s</small></dd></div>
-        </dl>
-        {storm && <p className="survey-status">탐험 · 득점 일시 중지</p>}
-      </aside>
       {!storm && outsideSurveyArea && <div className="survey-boundary" role="status">섬에서 멀어지고 있어요</div>}
       {!storm && discovery && elapsed - discovery.time < 3 && (
         <div className="discovery-toast" role="status">새 구역 발견{discovery.name && ' · ' + discovery.name}</div>
@@ -166,20 +180,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
         H 착륙장 위에서 ↓로 하강
       </div>}
 
-      <div className="ring-feedback" role="status" aria-atomic="true">
-        {recoveries > 0 && (
-          <div className="ring-feedback-card recovery-feedback" key={`recovery-${recoveries}`}>
-            <strong>{storm ? '안전 고도에서 귀환 재시도' : '출발 지점으로 복귀'}</strong>
-            <span>{RECOVERY_MESSAGES[recoveryReason]}</span>
-            {recoveryReason === 'terrain' && <span>최대 속도를 100&nbsp;u/s로 초기화했어요.</span>}
-            <span>탐험 기록은 유지돼요.</span>
-          </div>
-        )}
-
-      </div>
-
-      {/* 하단 조작 안내 */}
-      {showControls && !storm && <footer className="game-footer">
+      <footer className="game-footer">
         <div className="control-guide">
           {FLIGHT_CONTROLS.map(({ keys, label }) => (
             <div className="control-item" key={label}>
@@ -190,7 +191,7 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
             </div>
           ))}
         </div>
-      </footer>}
+      </footer>
     </main>
   )
 }
@@ -198,42 +199,53 @@ function PlayingScreen({ progress, sceneContainer, ringDirection, onPause, isPau
 // 일시정지 팝업
 function PauseScreen({ onResume, onRestart, onHome, onFinish, storm }) {
   const modal = useRef(null)
+  const resumeButton = useRef(null)
+  const instructions = useRef(null)
   const [confirmAction, setConfirmAction] = useState(null)
 
   useEffect(() => {
     const dialog = modal.current
     dialog.showModal()
+    resumeButton.current?.focus()
     return () => dialog.close()
   }, [])
 
   return (
-    <dialog
-      className="pause-modal flight-pause"
-      ref={modal}
-      aria-labelledby="pause-title"
-      onCancel={(event) => {
-        event.preventDefault()
-        if (confirmAction) setConfirmAction(null)
-        else onResume()
-      }}
-    >
-      <h2 id="pause-title">{confirmAction ? '현재 비행 기록을 지울까요?' : '비행 일시정지'}</h2>
-      {confirmAction ? <>
-        <button className="primary-button modal-primary" onClick={() => setConfirmAction(null)}>돌아가기</button>
-        <button className="secondary-button" onClick={confirmAction === 'restart' ? onRestart : onHome}>
-          {confirmAction === 'restart' ? '기록 지우고 다시 시작' : '기록 지우고 메인으로'}
-        </button>
-      </> : <>
-        <p className="score-rules">{storm ? 'H 착륙장으로 귀환하세요.' : `링 기본 ${BASE_RING_POINTS}점 · 통과 속도에 따라 보너스`}</p>
-        <p className="pause-controls">↑ ↓ 고도 · ←→ 회전 · W 가속 · S 감속</p>
-        <button className="primary-button modal-primary" onClick={onResume}>{storm ? '비상 귀환 재개' : '비행 재개'}</button>
-        {!storm && <button className="secondary-button" onClick={onFinish}>비행 마치고 결과 보기</button>}
-        <div className="pause-exits">
-          <button className="text-button" onClick={() => setConfirmAction('restart')}>처음부터 다시 시작</button>
-          <button className="text-button" onClick={() => setConfirmAction('home')}>메인 화면으로</button>
-        </div>
-      </>}
-    </dialog>
+    <>
+      <dialog
+        className="pause-modal flight-pause"
+        ref={modal}
+        aria-labelledby="pause-title"
+        onCancel={(event) => {
+          event.preventDefault()
+          if (confirmAction) setConfirmAction(null)
+          else onResume()
+        }}
+      >
+        <header className="pause-heading">
+          {!confirmAction && (
+            <button className="secondary-button pause-help-button" aria-haspopup="dialog" onClick={() => instructions.current.showModal()}>
+              게임 방법
+            </button>
+          )}
+          <h2 id="pause-title">{confirmAction ? '현재 비행 기록을 지울까요?' : '비행 일시정지'}</h2>
+        </header>
+        {confirmAction ? <>
+          <button className="primary-button modal-primary" onClick={() => setConfirmAction(null)}>돌아가기</button>
+          <button className="secondary-button" onClick={confirmAction === 'restart' ? onRestart : onHome}>
+            {confirmAction === 'restart' ? '기록 지우고 다시 시작' : '기록 지우고 메인으로'}
+          </button>
+        </> : <>
+          <button ref={resumeButton} className="primary-button modal-primary" onClick={onResume}>{storm ? '비상 귀환 재개' : '비행 재개'}</button>
+          {!storm && <button className="secondary-button" onClick={onFinish}>비행 마치고 결과 보기</button>}
+          <div className="pause-exits">
+            <button className="text-button" onClick={() => setConfirmAction('restart')}>처음부터 다시 시작</button>
+            <button className="text-button" onClick={() => setConfirmAction('home')}>메인 화면으로</button>
+          </div>
+        </>}
+      </dialog>
+      <FlightInstructions dialog={instructions} controls={FLIGHT_CONTROLS} onContinue={onResume} continueLabel="비행 재개" />
+    </>
   )
 }
 
@@ -246,25 +258,25 @@ const FLIGHT_EVENTS = {
 }
 
 function FlightTimeline({ events, elapsed }) {
-  const types = Object.entries(FLIGHT_EVENTS).filter(([type]) => events.some((event) => event.type === type))
-
   return (
     <section className="flight-timeline" aria-label="비행 타임라인">
       <h2>비행 타임라인</h2>
-      <div className="flight-timeline-axis">
+      <div className="flight-timeline-labels">
         <span>00:00</span><span>{formatTime(elapsed)}</span>
-        {events.map((event, index) => (
-          <i key={index} role="img" aria-label={formatTime(event.time) + ' ' + FLIGHT_EVENTS[event.type].label}
-            style={{
-              left: Math.min(100, event.time / Math.max(1, elapsed) * 100) + '%',
-              backgroundColor: FLIGHT_EVENTS[event.type].color,
-              '--event-row': Object.keys(FLIGHT_EVENTS).indexOf(event.type),
-            }} />
-        ))}
       </div>
-      {types.length > 0 && <ul className="timeline-legend" aria-label="타임라인 색상 범례">
-        {types.map(([type, { label, color }]) => <li key={type}><i style={{ backgroundColor: color }} />{label}</li>)}
-      </ul>}
+      <div className="flight-timeline-axis">
+        {events.map((event, index) => {
+          const { label, color } = FLIGHT_EVENTS[event.type]
+          const position = elapsed > 0 ? Math.max(0, Math.min(1, event.time / elapsed)) : 0
+          return (
+            <i key={index} role="img" aria-label={formatTime(event.time) + ' ' + label}
+              style={{ left: position * 100 + '%', backgroundColor: color }} />
+          )
+        })}
+      </div>
+      <ul className="timeline-legend" aria-label="타임라인 색상 범례">
+        {Object.entries(FLIGHT_EVENTS).map(([type, { label, color }]) => <li key={type}><i style={{ backgroundColor: color }} />{label}</li>)}
+      </ul>
     </section>
   )
 }
