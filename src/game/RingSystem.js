@@ -8,6 +8,9 @@
  * 이 파일에서는 링의 위치와 비행기의 이동 경로를 비교한다.
  */
 
+export const BASE_RING_POINTS = 100;
+const PLANE_EPSILON = 1e-6;
+
 export class RingSystem {
     constructor(rings = []) {
         // 통과 판정에 사용할 링 목록
@@ -15,12 +18,14 @@ export class RingSystem {
 
         // 지금까지 통과한 링 개수
         this.passedCount = 0;
+        this.score = 0;
 
         // 이미 통과한 링의 ID를 저장하여 중복 점수를 방지한다.
         this.passedRings = new Set();
 
         // 이전 프레임의 비행기 위치
         this.previousPosition = null;
+        this.approachSides = new Map();
     }
 
     /**
@@ -44,8 +49,10 @@ export class RingSystem {
     /**
      * 비행기의 현재 위치를 확인하여
      * 이번 업데이트에서 새롭게 통과한 링 개수를 반환한다.
+     * onPassed에는 통과한 링의 ID와 데이터를 전달하고, 반환한 점수를 기록한다.
+     * 점수를 반환하지 않으면 링당 기본 점수를 기록한다.
      */
-    update(airplanePosition) {
+    update(airplanePosition, onPassed) {
         if (!airplanePosition) {
             return 0;
         }
@@ -72,10 +79,11 @@ export class RingSystem {
                 continue;
             }
 
-            if (this.hasPassedThrough(previous, current, ring)) {
+            if (this.hasPassedThrough(previous, current, ring, ringId)) {
                 this.passedRings.add(ringId);
                 this.passedCount++;
                 newlyPassed++;
+                this.score += onPassed?.(ringId, ring) ?? BASE_RING_POINTS;
             }
         }
 
@@ -89,8 +97,8 @@ export class RingSystem {
      * 이전 위치와 현재 위치를 이용하여 링 통과 여부를 계산한다.
      * 링 평면을 가로질렀고, 교차 지점이 링 내부라면 통과한 것이다.
      */
-    hasPassedThrough(previous, current, ring) {
-        if (!ring.position || !Number.isFinite(ring.radius)) {
+    hasPassedThrough(previous, current, ring, ringId) {
+        if (!ring.position || !Number.isFinite(ring.radius) || ring.radius <= 0) {
             return false;
         }
 
@@ -114,18 +122,21 @@ export class RingSystem {
             normal
         );
 
-        // 비행기가 링 평면을 실제로 가로지르지 않았다면 통과가 아니다.
-        if (
-            previousDistance * currentDistance > 0 ||
-            previousDistance === currentDistance
-        ) {
+        const previousSide = Math.abs(previousDistance) <= PLANE_EPSILON
+            ? 0 : Math.sign(previousDistance);
+        const currentSide = Math.abs(currentDistance) <= PLANE_EPSILON
+            ? 0 : Math.sign(currentDistance);
+        // 평면 위 프레임이 끼어도 처음 접근한 쪽과 떠나는 쪽이 달라야 한다.
+        if (ringId !== undefined && previousSide !== 0) {
+            this.approachSides.set(ringId, previousSide);
+        }
+        const approachSide = previousSide || this.approachSides.get(ringId);
+        if (currentSide === 0 || !approachSide || approachSide === currentSide) {
             return false;
         }
 
         // 두 위치 사이에서 링 평면과 만나는 지점을 계산한다.
-        const t =
-            previousDistance /
-            (previousDistance - currentDistance);
+        const t = previousSide === 0 ? 0 : previousDistance / (previousDistance - currentDistance);
 
         const intersection = {
             x: previous.x + (current.x - previous.x) * t,
@@ -183,15 +194,25 @@ export class RingSystem {
         return this.passedCount;
     }
 
-    // 현재 점수를 반환한다. 링 하나당 100점이다.
+    hasPassed(ringId) {
+        return this.passedRings.has(ringId);
+    }
+
+    // 현재 점수를 반환한다.
     getScore() {
-        return this.passedCount * 100;
+        return this.score;
+    }
+
+    clearPosition() {
+        this.previousPosition = null;
+        this.approachSides.clear();
     }
 
     // 게임을 다시 시작할 때 기록을 초기화한다.
     reset() {
         this.passedCount = 0;
+        this.score = 0;
         this.passedRings.clear();
-        this.previousPosition = null;
+        this.clearPosition();
     }
 }

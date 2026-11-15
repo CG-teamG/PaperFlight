@@ -1,16 +1,39 @@
-# React + Vite
+# PaperFlight
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+종이비행기로 섬을 탐험하고, 폭풍이 오면 H 착륙장으로 돌아와 방재 장치를 복구하는 3D 비행 게임입니다.
 
-Currently, two official plugins are available:
+## 로컬 실행
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. Node.js와 npm을 준비합니다. Node.js 24에서 실행을 확인했습니다.
+2. VS Code에서 `extra/disaster-mode` 작업 폴더를 엽니다. 터미널에서 `git branch --show-current`로 브랜치를 확인할 수 있습니다.
+3. 프로젝트 폴더에서 아래 명령을 실행합니다.
 
-## React Compiler
+```sh
+npm ci
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+4. 터미널에 출력된 `Local` 주소를 브라우저에서 엽니다. 기본 포트는 5173이며, 이미 사용 중이면 다른 포트가 표시될 수 있습니다.
 
-## Expanding the ESLint configuration
+## Windows에서 리틱체 설치 및 적용 확인
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. [제작자 공식 페이지](https://www.reaticindustry.com/reaticfont)에서 리틱체를 다운로드하고 ZIP 파일의 압축을 풉니다.
+2. `TTF/REATIC` 폴더에서 `REATIC-Regular.ttf`와 `REATIC-Bold.ttf`를 각각 열고 **설치**를 누릅니다.
+3. Windows **설정 → 개인 설정 → 글꼴**에서 `REATIC` 또는 `리틱체`를 검색합니다.
+4. 브라우저를 완전히 닫았다가 게임 주소를 다시 엽니다. 시작 화면의 제목과 한글 안내문에서 적용을 확인할 수 있습니다.
+
+게임은 PC에 설치된 리틱체를 우선 사용합니다. `npm run dev`는 글꼴을 설치하지 않으며, 리틱체가 없어도 대체 글꼴로 실행됩니다. 적용이 안 보이면 터미널의 브랜치와 `Local` 주소를 확인해 주세요. 폰트 파일 공유 조건은 [라이선스 안내](https://noonnu.cc/font_page/2010)를 참고하세요.
+
+## 조작과 진행
+
+- `↑ / ↓` 상승·하강, `← / →` 좌우 회전, `W / S` 가속·감속, `Esc` 메뉴 열기
+- 섬을 탐험하고 링을 통과해 점수를 얻습니다.
+- 폭풍 중 H에 착륙하면 회로 복구가 열립니다. 복구 후 다시 이륙하거나 비행을 마칠 수 있습니다.
+- 결과 화면에서 점수, 3D 탐험 지도, 비행 경로와 타임라인을 확인합니다.
+
+## 개발 확인
+
+```sh
+npm run lint
+npm run build
+```
