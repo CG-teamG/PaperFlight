@@ -84,7 +84,7 @@ export default function StormRepair({ repairRequired, maxSpeed, initialCircuit, 
             </>
           ) : (
             <>
-              <p>같은 섬에서 탐험을 이어가요. 최대 속도 {maxSpeed + 100} u/s</p>
+              <p>같은 섬에서 탐험을 이어가요. 최대 속도 <span className="landing-speed-value">{maxSpeed + 100} u/s</span></p>
               <button ref={takeOffButton} className="primary-button modal-primary" onClick={onTakeOff}>다시 이륙</button>
               <button className="secondary-button" onClick={onFinish}>비행 마치고 지도 보기</button>
             </>

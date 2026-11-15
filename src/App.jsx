@@ -467,7 +467,7 @@ function ResultMap({ island, zones, path, routeEvents, distance, elapsed }) {
     <>
       <div className="flight-route-heading">
         <strong>전체 비행 경로</strong>
-        <span>이동 거리 {Math.round(distance).toLocaleString()} u</span>
+        <span>이동 거리 <span className="result-distance">{Math.round(distance).toLocaleString()} u</span></span>
       </div>
       <div
         className="result-map-3d"

@@ -918,6 +918,10 @@ h2.result-card-label {
 }
 
 .result-score {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
   margin-top: 3px;
   font-size: clamp(38px, 6vw, 54px);
   font-weight: 800;
@@ -926,7 +930,7 @@ h2.result-card-label {
 }
 
 .result-score span {
-  margin-left: 8px;
+  flex: none;
   font-size: 12px;
   letter-spacing: 1px;
 }
